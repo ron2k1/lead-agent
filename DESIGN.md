@@ -2511,3 +2511,46 @@ v1.0 implements the runtime gate end-to-end. The skill is `lead-agent gate ACTIV
 The skill ships as a working day-one assistant for ADVISOR (the everyday "second pair of eyes") and TOOLSMITH (skill-creator workflows isolated from the main project tree) with the gate ACTIVE. BUILDER works as a code-review buddy until v1.1's secret scanner lands; OVERWATCH works for explicit reads until v1.1's tail watcher lands. The trust chain is end-to-end probed by `install.ps1 -Verify` and the deny-by-default invariant holds at every layer.
 
 ---
+
+### 15.10 v1.0 -> v1.0.1 patch (2026-05-06 evening)
+
+The v1.0 launch surfaced two real-world issues during a fresh-install smoke test on the author's machine:
+
+1. **SKILL contract drift.** SKILL.md was silent on no-arg `/lead-agent` invocation. Main CC scope-crept into an interactive mode/cwd picker that had no place in the spec. The skill is supposed to be a thin shell that hands control to `launch.ps1`; the inline question tree violated that contract.
+2. **Orphan-lock UX gap.** A prior lieutenant tab was closed via the WT X-button (vs. `exit` / runner cleanup). The lockfile at `%LOCALAPPDATA%\Temp\lead-agent.lock` orphaned. Re-running `/lead-agent` produced `stale lockfile detected; -Force not yet implemented` -- the documented `-Force` opt-in (SKILL.md `## When NOT to use`) is a v1.x stub (`launch.ps1:46-52`). No automated recovery, and `install.ps1 -Verify` did not warn about this drift at install time.
+
+#### Closed in v1.0.1
+
+| ID | Defect | Fix | Files |
+|---|---|---|---|
+| F-03 | SKILL.md silent on no-arg invocation; main CC invented an interactive mode/cwd picker that violated "hand control to `launch.ps1`" | SKILL.md `## How to invoke` gains a `### Contract` section that mandates: default to ADVISOR + `$PWD`, no prompts, surface `launch.ps1` refusals verbatim. Explicit "do NOT offer `-Force`" rule because it is a v1.x stub. | `SKILL.md` |
+| F-04 | No documented recovery path for orphan-lock case; users hit `-Force not yet implemented` and got stuck with no guidance | README.md `## Recovery` section with the manual `Remove-Item` one-liner. SKILL.md cross-references it. FAQ entry covers the same. | `SKILL.md`, `README.md` |
+| F-05 | `install.ps1 -Verify` did not detect doc-vs-code drift; `-Force` was advertised in SKILL.md but stubbed in `launch.ps1`, with no warning at install time | `install.ps1 -Verify` gains a 6th probe that scans `launch.ps1` for the stub-`-Force` pattern and prints a non-fatal yellow drift warning. Gate stays ACTIVE; user is informed. Probe auto-silences once v1.1 ships proper `-Force`. | `install.ps1` |
+
+#### Carried to v1.1 (lockfile auto-recovery)
+
+| ID | Defect | Why deferred | v1.1 plan |
+|---|---|---|---|
+| F-01 | `launch.ps1` `-Force` flag is a stub at lines 46-52; even with the user opt-in, it still refuses with `-Force not yet implemented`. Combined with F-02, orphan locks have no automated recovery. | Real PID + start-time stale-detection + auto-cleanup + log-to-file is a ~30 LOC PowerShell change but needs C-01..C-13 fixture coverage to ship safely (residual #33). | Implement per section 4.1.3.1 v1.x TODO: `Get-CimInstance Win32_Process` for PID + `CreationDate` correlation. If PID dead OR start-time mismatch, log to `~/.claude/skills/lead-agent/logs/lock-recovery.log` and reclaim the lock. Live PID with matching start-time still refuses (the original lieutenant is genuinely running). |
+| F-02 | `runner.ps1` does not register a `try/finally` lock-release on tab close. `launch.ps1:162-167` notes the lock is intentionally held for the LIFE of the lead tab and "the runner releases it on exit" -- but the runner currently has no exit hook, so X-button closure orphans the lock. | Same fixture-test gap as F-01. | Wrap runner main loop in `try { ... } finally { Remove-Item $LockPath }` plus `Register-EngineEvent PowerShell.Exiting` for the `Ctrl+C` / parent-PID-killed paths. |
+
+#### User-reported repro (closes the gap)
+
+A fresh-install user closed their lieutenant tab via the WT X-button (vs. typing `exit`). Re-running `/lead-agent` produced the cascade:
+
+1. SKILL skipped no-arg defaults and prompted for mode + cwd. (Now closed by F-03.)
+2. After mode selection, `launch.ps1` detected the orphan lockfile and refused with the stub `-Force` message. (F-04 documents the manual recovery; F-01 + F-02 will automate it in v1.1.)
+3. `install.ps1 -Verify` did not warn about the stub at install time, so the user discovered it the hard way. (F-05 closes this.)
+
+This is the kind of "honest stub" that v1 ships in many places (per section 15.8 ceiling rule). The fix is not to remove the ceiling rule -- shipping with documented stubs is what let v1.0 ship at all -- it is to add a drift-detector probe (F-05) so adopters are told about the gap before they hit it.
+
+#### Architecture summary v1.0 -> v1.0.1
+
+No runtime-gate changes. The pin manifest does not regenerate (none of the 9 pinned files change). `_ANCHOR_SHA` does not need re-stamping. The patch is purely:
+
+- Documentation (SKILL.md, README.md, DESIGN.md).
+- One non-fatal install-time drift probe (`install.ps1`).
+
+Forks that pull v1.0.1 do NOT need to re-run `install.ps1` for the gate to keep working -- but they SHOULD, so the drift probe runs and they learn about the v1.1 lockfile gap proactively.
+
+---
