@@ -11,6 +11,22 @@
 
 ---
 
+**Worried about giving Claude Code shell access?** lead-agent runs a
+SECOND Claude Code instance -- "the lieutenant" -- with a deny-by-default
+PreToolUse gate sitting in front of every tool call. Same toolkit
+(plugins, MCPs, skills), but only what an explicit allowlist plus
+path-guard say it can do. The lieutenant cannot talk its way past the
+gate; the gate is the source of truth.
+
+The 30-second pitch: open `/lead-agent` in your main CC, get a fresh
+Claude Code tab on your second monitor with a different system prompt
+and a tighter tool surface. Use it as a code-review buddy (ADVISOR),
+to refine your skills (TOOLSMITH), or to prepare branches with no push
+authority (BUILDER, partial in v1.1.0). The runtime gate is identical
+across all four modes; only the allowlist differs.
+
+---
+
 ## Status
 
 v1.1.0 shipped 2026-05-06 as a walkback over v1.0.x. The runtime gate is
@@ -66,16 +82,26 @@ Hard requirements (skill refuses to launch without these):
 - Python 3.10+ on `PATH`. The hook is a Python subprocess.
 - Windows Terminal (`wt.exe`) 1.18 or later.
 - Claude Code CLI (`claude` or `claude.cmd`) on `PATH`.
-- An existing `windows_shell_safety.py` PreToolUse hook installed at
-  `~/.claude/hooks/windows_shell_safety.py`. The lead-agent gate chains
-  INTO this file rather than dropping a parallel hook. Without the host
-  file, the install refuses. The host hook is part of the Anthropic
-  Windows safety baseline. If you do not have it, install it first or
-  use `-HookFileOverride` to point at an equivalent Python PreToolUse
-  hook of your own.
 
 Soft requirements (recommended):
 
+- A PreToolUse hook at `~/.claude/hooks/windows_shell_safety.py`. The
+  lead-agent gate chains INTO this file rather than dropping a parallel
+  hook. Three install paths:
+    1. You already have your own custom hook (shell-safety, secret-scan,
+       project-specific deny rules) -- lead-agent extends it without
+       replacing.
+    2. You don't have one. Run `install.ps1 -Bootstrap` to drop the
+       bundled `lib/windows_shell_safety_stub.py` (a 50-line ASCII no-op
+       that drains stdin and exits 0) at the host path. This is a chain
+       anchor only -- the stub is allow-all on its own; lead-agent's
+       deny-by-default gate runs ON TOP of it when `LEAD_AGENT=1`. The
+       stub never touches main CC's behavior.
+    3. You have a hook at a different path. Pass `-HookFileOverride
+       <path>` to point at it.
+  Without one of the above, `install.ps1` refuses. The stub is NOT
+  pinned in `lib/lead-extension.sha256` by design -- you are expected
+  to replace or harden it yourself.
 - `gh` CLI logged into your GitHub account. BUILDER mode opens draft PRs
   via `gh pr create --draft`.
 - A `~/.claude/tools/notify.sh` script for one-way Telegram or Discord
@@ -93,7 +119,12 @@ git clone https://github.com/ron2k1/lead-agent "$env:USERPROFILE\.claude\skills\
 
 # 2. Run the bootstrap. Stamps the trust anchor, chains the hook,
 #    pins the integrity manifest.
+#    First install with no host hook? Add -Bootstrap to drop the
+#    bundled no-op stub at ~/.claude/hooks/windows_shell_safety.py
+#    so the lead-agent gate has a chain anchor.
 & "$env:USERPROFILE\.claude\skills\lead-agent\install.ps1"
+# OR for fresh machines:
+# & "$env:USERPROFILE\.claude\skills\lead-agent\install.ps1" -Bootstrap
 
 # 3. Verify the gate is wired (should print "lead-agent gate ACTIVE").
 & "$env:USERPROFILE\.claude\skills\lead-agent\install.ps1" -Verify
@@ -279,9 +310,11 @@ deferred. If you specifically need autonomous push, wait for v1.1.1.
 **Does this work on macOS or Linux?**
 
 No. v1 is Windows-only. The launcher uses `wt.exe` (Windows Terminal)
-and chains into `windows_shell_safety.py` (Anthropic's Windows safety
-baseline). A Linux port would replace both layers; see
-`## Distribution / forking notes` for the boundaries.
+and chains into a Python PreToolUse hook at
+`~/.claude/hooks/windows_shell_safety.py` -- either your own custom
+hook, or the bundled `-Bootstrap` no-op stub. A Linux port would
+replace both layers; see `## Distribution / forking notes` for the
+boundaries.
 
 **My fork edits a file under `lib/`. Why does the gate now refuse
 everything?**
