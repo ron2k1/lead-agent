@@ -132,25 +132,31 @@ if ($env:LEAD_AGENT_CALLER_SESSION_ID) {
     }
 }
 
-# 15-pattern secret pin-set (MIRROR of lib/secret-scan.ps1 -- keep in
-# sync; the two scanners must redact the same alphabet so OVERWATCH
-# never bleeds a secret that BUILDER's diff-scan would have caught).
+# Canonical secret-pattern set v1.1.0 (W3-1). Identical regex strings
+# to lib/secret-scan.ps1 + lib/allowlist_parser.py:_SECRET_PATTERNS --
+# the comment claimed mirror-status pre-v1.1.0 but the lists had
+# silently drifted (postgres without ql, rk_live without test/upper,
+# slack patterns over-specific, bearer with embedded (?i) flag). Codex
+# Wave 3b W3-1 caught the drift; this unified set restores the
+# guarantee that BUILDER's diff-scan and OVERWATCH's transcript audit
+# redact the same alphabet, so neither layer can leak a secret the
+# other would have caught.
 $secretPatterns = @(
     @{ Name = 'aws-access-key';     Pattern = 'AKIA[0-9A-Z]{16}' }
-    @{ Name = 'aws-session-token';  Pattern = '(?:FQoG|FwoG|IQo)[A-Za-z0-9+/=]{200,}' }
-    @{ Name = 'openai-key';         Pattern = 'sk-(?:proj-)?[A-Za-z0-9_\-]{20,}' }
-    @{ Name = 'github-pat';         Pattern = 'ghp_[A-Za-z0-9]{36,}' }
-    @{ Name = 'github-oauth';       Pattern = 'gho_[A-Za-z0-9]{36,}' }
-    @{ Name = 'gitlab-pat';         Pattern = 'glpat-[A-Za-z0-9_\-]{20,}' }
-    @{ Name = 'slack-bot';          Pattern = 'xoxb-[0-9]+-[0-9]+-[A-Za-z0-9]+' }
-    @{ Name = 'slack-user';         Pattern = 'xoxp-[0-9]+-[0-9]+-[0-9]+-[A-Za-z0-9]+' }
-    @{ Name = 'jwt';                Pattern = 'eyJ[A-Za-z0-9_\-]{30,}\.[A-Za-z0-9_\-]{30,}\.[A-Za-z0-9_\-]{30,}' }
-    @{ Name = 'postgres-url';       Pattern = 'postgres(?:ql)?://[^\s''"<>]{8,}' }
-    @{ Name = 'mongodb-url';        Pattern = 'mongodb(?:\+srv)?://[^\s''"<>]{8,}' }
-    @{ Name = 'mysql-url';          Pattern = 'mysql://[^\s''"<>]{8,}' }
-    @{ Name = 'redis-url';          Pattern = 'rediss?://[^\s''"<>]{8,}' }
-    @{ Name = 'stripe-live';        Pattern = 'rk_live_[A-Za-z0-9]{24,}' }
-    @{ Name = 'bearer-token';       Pattern = '(?i)bearer\s+[A-Za-z0-9_\-\.=]{20,}' }
+    @{ Name = 'openai-key';         Pattern = 'sk-(?:proj-)?[A-Za-z0-9_-]{20,}' }
+    @{ Name = 'github-pat';         Pattern = 'ghp_[A-Za-z0-9]{36}' }
+    @{ Name = 'github-oauth';       Pattern = 'gho_[A-Za-z0-9]{36}' }
+    @{ Name = 'gitlab-pat';         Pattern = 'glpat-[A-Za-z0-9_-]{20}' }
+    @{ Name = 'slack-bot';          Pattern = 'xoxb-[A-Za-z0-9-]{40,}' }
+    @{ Name = 'slack-user';         Pattern = 'xoxp-[A-Za-z0-9-]{40,}' }
+    @{ Name = 'jwt';                Pattern = 'eyJ[A-Za-z0-9_-]{30,}\.[A-Za-z0-9_-]{30,}\.[A-Za-z0-9_-]{30,}' }
+    @{ Name = 'postgres-url';       Pattern = 'postgres(?:ql)?://[^:]+:[^@]+@' }
+    @{ Name = 'stripe-restricted';  Pattern = 'rk_(?:live|test)_[A-Za-z0-9]+' }
+    @{ Name = 'bearer-token';       Pattern = '[Bb]earer\s+[A-Za-z0-9_=-]{20,}' }
+    @{ Name = 'mongodb-url';        Pattern = 'mongodb(?:\+srv)?://[^:]+:[^@]{4,}@' }
+    @{ Name = 'mysql-url';          Pattern = 'mysql://[^:]+:[^@]{4,}@' }
+    @{ Name = 'redis-url';          Pattern = 'redis(?:s)?://[^:]+:[^@]{4,}@' }
+    @{ Name = 'aws-sts-token';      Pattern = '\b(?:FQoG|FwoG|IQo[a-zA-Z0-9])[A-Za-z0-9_/+=]{200,}' }
 )
 $compiledSecrets = foreach ($p in $secretPatterns) {
     [System.Text.RegularExpressions.Regex]::new($p.Pattern, $RegexOpts)

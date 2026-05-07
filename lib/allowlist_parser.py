@@ -295,18 +295,32 @@ def match_rule(argv: list, rules: list, denyglobs_loader=None):
 # secret scan (used by postCheck:scan-secrets-in:)
 # ---------------------------------------------------------------------------
 
+# Canonical secret-pattern set v1.1.0 (W3-1). Identical regex strings
+# must appear in lib/secret-scan.ps1 and lib/jsonl-watcher.ps1 -- the
+# Python list here is the runtime-active copy via apply_post_checks ->
+# scan_secrets, the PS1 copies provide defense-in-depth at the launcher
+# (signed-envelope) and transcript audit boundaries.
+#
+# Fixes vs v1.0:
+#   * postgres -> postgres(?:ql)?  (codex: missed postgresql:// scheme)
+#   * rk_live_ -> rk_(?:live|test)_[A-Za-z0-9]+  (codex: missed
+#     uppercase + test-mode keys)
+#   * sk- -> sk-(?:proj-)?  (proactive: OpenAI project-scoped keys)
+#   * Bearer -> [Bb]earer  (codex: case-insensitivity TBD; Python re
+#     defaults case-sensitive, PS .NET -match defaults case-insensitive
+#     -- character-class form is identical-behavior across both engines)
 _SECRET_PATTERNS = [
     re.compile(r"AKIA[0-9A-Z]{16}"),
-    re.compile(r"sk-[A-Za-z0-9]{20,}"),
+    re.compile(r"sk-(?:proj-)?[A-Za-z0-9_-]{20,}"),
     re.compile(r"ghp_[A-Za-z0-9]{36}"),
     re.compile(r"gho_[A-Za-z0-9]{36}"),
     re.compile(r"glpat-[A-Za-z0-9_-]{20}"),
     re.compile(r"xoxb-[A-Za-z0-9-]{40,}"),
     re.compile(r"xoxp-[A-Za-z0-9-]{40,}"),
     re.compile(r"eyJ[A-Za-z0-9_-]{30,}\.[A-Za-z0-9_-]{30,}\.[A-Za-z0-9_-]{30,}"),
-    re.compile(r"postgres://[^:]+:[^@]+@"),
-    re.compile(r"rk_live_[a-z0-9]+"),
-    re.compile(r"Bearer\s+[A-Za-z0-9_=-]{20,}"),
+    re.compile(r"postgres(?:ql)?://[^:]+:[^@]+@"),
+    re.compile(r"rk_(?:live|test)_[A-Za-z0-9]+"),
+    re.compile(r"[Bb]earer\s+[A-Za-z0-9_=-]{20,}"),
     re.compile(r"mongodb(?:\+srv)?://[^:]+:[^@]{4,}@"),
     re.compile(r"mysql://[^:]+:[^@]{4,}@"),
     re.compile(r"redis(?:s)?://[^:]+:[^@]{4,}@"),

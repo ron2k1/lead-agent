@@ -124,18 +124,33 @@ $regexOpts = [System.Text.RegularExpressions.RegexOptions]::Compiled -bor `
              [System.Text.RegularExpressions.RegexOptions]::CultureInvariant -bor `
              [System.Text.RegularExpressions.RegexOptions]::ExplicitCapture
 
+# Canonical secret-pattern set v1.1.0 (W3-1). Identical regex strings
+# must appear in lib/allowlist_parser.py:_SECRET_PATTERNS (runtime-active
+# Python copy) and lib/jsonl-watcher.ps1 (transcript audit). The .NET
+# regex options pin (Compiled|CultureInvariant|ExplicitCapture) keeps
+# behavior identical to Python re's defaults: case-sensitive, no
+# capture groups -- so the patterns are byte-for-byte portable.
+#
+# Fixes vs v1.0:
+#   * postgres -> postgres(?:ql)?  (codex: missed postgresql:// scheme)
+#   * rk_live_ -> rk_(?:live|test)_[A-Za-z0-9]+  (codex: missed
+#     uppercase + test-mode keys)
+#   * sk- -> sk-(?:proj-)?  (proactive: OpenAI project-scoped keys)
+#   * Bearer -> [Bb]earer  (codex: case-insensitivity TBD; .NET regex
+#     defaults to case-sensitive when no RegexOptions.IgnoreCase is set
+#     -- character-class form is identical-behavior across Python +.NET)
 $denyPatterns = @(
     @{ name = 'AWS access key (AKIA)';        pattern = 'AKIA[0-9A-Z]{16}' },
-    @{ name = 'OpenAI key (sk-)';             pattern = 'sk-[A-Za-z0-9]{20,}' },
+    @{ name = 'OpenAI key (sk-)';             pattern = 'sk-(?:proj-)?[A-Za-z0-9_-]{20,}' },
     @{ name = 'GitHub PAT (ghp_)';            pattern = 'ghp_[A-Za-z0-9]{36}' },
     @{ name = 'GitHub OAuth (gho_)';          pattern = 'gho_[A-Za-z0-9]{36}' },
     @{ name = 'GitLab PAT (glpat-)';          pattern = 'glpat-[A-Za-z0-9_-]{20}' },
     @{ name = 'Slack bot token (xoxb-)';      pattern = 'xoxb-[A-Za-z0-9-]{40,}' },
     @{ name = 'Slack user token (xoxp-)';     pattern = 'xoxp-[A-Za-z0-9-]{40,}' },
     @{ name = 'JWT';                          pattern = 'eyJ[A-Za-z0-9_-]{30,}\.[A-Za-z0-9_-]{30,}\.[A-Za-z0-9_-]{30,}' },
-    @{ name = 'Postgres URL with password';   pattern = 'postgres://[^:]+:[^@]+@' },
-    @{ name = 'Stripe restricted-key (live)'; pattern = 'rk_live_[a-z0-9]+' },
-    @{ name = 'Bearer token';                 pattern = 'Bearer\s+[A-Za-z0-9_=-]{20,}' },
+    @{ name = 'Postgres URL with password';   pattern = 'postgres(?:ql)?://[^:]+:[^@]+@' },
+    @{ name = 'Stripe restricted-key';        pattern = 'rk_(?:live|test)_[A-Za-z0-9]+' },
+    @{ name = 'Bearer token';                 pattern = '[Bb]earer\s+[A-Za-z0-9_=-]{20,}' },
     @{ name = 'MongoDB URL with password';    pattern = 'mongodb(?:\+srv)?://[^:]+:[^@]{4,}@' },
     @{ name = 'MySQL URL with password';      pattern = 'mysql://[^:]+:[^@]{4,}@' },
     @{ name = 'Redis URL with password';      pattern = 'redis(?:s)?://[^:]+:[^@]{4,}@' },
