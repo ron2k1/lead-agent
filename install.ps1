@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [switch] $Verify,
-    [switch] $Force
+    [switch] $Force,
+    [switch] $Bootstrap
 )
 
 # install.ps1 - lead-agent bootstrap installer (v1.0).
@@ -17,6 +18,12 @@ param(
 #   3. Delegates to lib/install-hook.ps1 for the actual hook chain + manifest
 #      pin + trust-anchor file write.
 #   4. With -Verify: probes the installed gate end-to-end and reports state.
+#   5. With -Bootstrap: copies lib/windows_shell_safety_stub.py to
+#      ~/.claude/hooks/windows_shell_safety.py iff that file is missing.
+#      The stub is a no-op host hook (allow-all PreToolUse) whose only job
+#      is to be the chain anchor that step 3 extends with the lead-agent
+#      marker block. -Bootstrap is a no-op when a host hook already exists
+#      (it never overwrites a hardened user hook).
 #
 # Idempotent: safe to re-run on an already-installed skill. Re-stamps the
 # anchor only if it drifted, re-pins the manifest, exits clean.
@@ -28,6 +35,7 @@ $ScriptRoot   = $PSScriptRoot
 $LibDir       = Join-Path $ScriptRoot 'lib'
 $InstallHook  = Join-Path $LibDir     'install-hook.ps1'
 $HookPy       = Join-Path $LibDir     'lead-pretool-hook.py'
+$StubSource   = Join-Path $LibDir     'windows_shell_safety_stub.py'
 $HostHookPath = Join-Path $env:USERPROFILE '.claude\hooks\windows_shell_safety.py'
 $AnchorPath   = Join-Path $env:USERPROFILE '.claude\lead-agent-trust-anchor.txt'
 
@@ -45,6 +53,43 @@ function Get-FileSha256 {
     } finally { $sha.Dispose() }
 }
 
+function Invoke-Bootstrap {
+    # -Bootstrap: ensure ~/.claude/hooks/windows_shell_safety.py exists by
+    # copying the in-repo no-op stub there iff the host hook is missing.
+    # NEVER overwrite an existing host hook -- the user's own hook may carry
+    # secret-leak rules that we must not silently replace. When a hook is
+    # already present, this function is a no-op and install-hook.ps1 will
+    # chain the lead-agent marker block above its first real code line.
+    Write-Host ''
+    Write-Host '== Host hook bootstrap ==' -ForegroundColor Cyan
+
+    if (Test-Path -LiteralPath $HostHookPath -PathType Leaf) {
+        Write-Ok "host hook already present at $HostHookPath"
+        Write-Step 'bootstrap is a no-op; install-hook.ps1 will chain into the existing file.'
+        return
+    }
+
+    if (-not (Test-Path -LiteralPath $StubSource -PathType Leaf)) {
+        throw "stub source missing at $StubSource. Repo is malformed; re-clone from origin."
+    }
+
+    $hostHookDir = Split-Path -Parent $HostHookPath
+    if (-not (Test-Path -LiteralPath $hostHookDir -PathType Container)) {
+        Write-Step "creating $hostHookDir"
+        New-Item -ItemType Directory -Path $hostHookDir -Force | Out-Null
+    }
+
+    Write-Step "copying $StubSource"
+    Write-Step "    -> $HostHookPath"
+    # -Force:$false would re-throw on race-condition; we already checked
+    # absence above, so a plain Copy-Item without -Force is the right call.
+    Copy-Item -LiteralPath $StubSource -Destination $HostHookPath
+    Write-Ok 'minimal no-op stub installed.'
+    Write-Warn2 'this stub allows ALL PreToolUse calls in your main CC session.'
+    Write-Warn2 'lead-agent enforcement still applies inside the lieutenant tab via the marker block;'
+    Write-Warn2 'for defense-in-depth in your main CC session, replace the stub with your own hook.'
+}
+
 function Test-Prereq {
     Write-Host ''
     Write-Host '== Preflight ==' -ForegroundColor Cyan
@@ -57,7 +102,7 @@ function Test-Prereq {
         @{ Name = 'claude CLI present'; Test = { [bool]((Get-Command claude.cmd -ErrorAction SilentlyContinue) -or (Get-Command claude -ErrorAction SilentlyContinue)) }; Hint = 'install Claude Code CLI (npm i -g @anthropic-ai/claude-code).' }
         @{ Name = 'lib/install-hook.ps1';   Test = { Test-Path -LiteralPath $InstallHook -PathType Leaf };  Hint = "expected at $InstallHook" }
         @{ Name = 'lib/lead-pretool-hook.py'; Test = { Test-Path -LiteralPath $HookPy -PathType Leaf };    Hint = "expected at $HookPy" }
-        @{ Name = 'host hook present';   Test = { Test-Path -LiteralPath $HostHookPath -PathType Leaf };   Hint = "windows_shell_safety.py is the chained host. Install Anthropic's Windows safety baseline at $HostHookPath, or pass -HookFileOverride to lib/install-hook.ps1." }
+        @{ Name = 'host hook present';   Test = { Test-Path -LiteralPath $HostHookPath -PathType Leaf };   Hint = "windows_shell_safety.py is the PreToolUse chain anchor (you provide; lead-agent extends). Either author your own host hook at $HostHookPath, or re-run install.ps1 -Bootstrap to install a minimal no-op stub from lib/windows_shell_safety_stub.py." }
     )
 
     $allOk = $true
@@ -249,6 +294,8 @@ if ($Verify) {
     $ok = Test-Verify
     if ($ok) { exit 0 } else { exit 2 }
 }
+
+if ($Bootstrap) { Invoke-Bootstrap }
 
 Test-Prereq
 Update-AnchorConstant
