@@ -4,6 +4,12 @@
 codex-reviews/
 .codex-review-prompt.txt
 
+# Per-commit workflow files used to bypass PowerShell quoting on Windows
+# (`git commit -F .commitmsg`, `git tag -F .tagmsg-<v>`). These are scratch
+# files rewritten before each commit / tag and have no place in the repo.
+.commitmsg
+.tagmsg-*
+
 # The notify.sh hash is a per-user pin computed by install.ps1 -RepinNotify
 # from each cloner's local ~/.claude/tools/notify.sh. Shipping the author's
 # hash would silently fail-closed every cloner's hook.
