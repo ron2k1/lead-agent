@@ -18,7 +18,7 @@ $ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $LibDir     = Join-Path $ScriptRoot 'lib'
 
 if (-not (Test-Path -LiteralPath $ManifestPath)) {
-    Write-Error "lead-agent runner: manifest not found at $ManifestPath"
+    [Console]::Error.WriteLine("lead-agent runner: manifest not found at $ManifestPath")
     exit 2
 }
 
@@ -91,18 +91,18 @@ try {
     $raw = Get-Content -LiteralPath $ManifestPath -Raw -Encoding UTF8
     $manifest = $raw | ConvertFrom-Json
 } catch {
-    Write-Error "lead-agent runner: manifest unreadable: $_"
+    [Console]::Error.WriteLine("lead-agent runner: manifest unreadable: $_")
     exit 2
 }
 
 if ($manifest.version -ne '0.9-final') {
-    Write-Error ("lead-agent runner: unexpected manifest version '{0}'" -f $manifest.version)
+    [Console]::Error.WriteLine(("lead-agent runner: unexpected manifest version '{0}'" -f $manifest.version))
     exit 2
 }
 
 $mode = $manifest.mode
 if ($mode -notin 'OVERWATCH', 'ADVISOR', 'BUILDER', 'TOOLSMITH') {
-    Write-Error "lead-agent runner: invalid mode '$mode'"
+    [Console]::Error.WriteLine("lead-agent runner: invalid mode '$mode'")
     exit 2
 }
 

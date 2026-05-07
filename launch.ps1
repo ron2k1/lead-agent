@@ -29,7 +29,7 @@ $ChainedHookPath = Join-Path $env:USERPROFILE '.claude\hooks\windows_shell_safet
 $ChainedMarker   = '# BEGIN lead-agent-extension'
 
 function Write-Refusal($msg, $hint = '') {
-    Write-Error -Message ("lead-agent refuses: {0}{1}" -f $msg, ($(if ($hint) { "`n  hint: $hint" } else { '' })))
+    [Console]::Error.WriteLine(("lead-agent refuses: {0}{1}" -f $msg, ($(if ($hint) { "`n  hint: $hint" } else { '' }))))
     exit 2
 }
 

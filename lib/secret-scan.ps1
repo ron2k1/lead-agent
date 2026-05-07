@@ -30,29 +30,29 @@ Set-StrictMode -Version Latest
 
 # --- preflight -------------------------------------------------------------
 if ($env:LEAD_AGENT -ne '1') {
-    Write-Error "secret-scan.ps1: not running in a lead-mode session (LEAD_AGENT != 1)"
+    [Console]::Error.WriteLine("secret-scan.ps1: not running in a lead-mode session (LEAD_AGENT != 1)")
     exit 2
 }
 if (-not $env:LEAD_AGENT_ACK_HMAC_KEY) {
-    Write-Error "secret-scan.ps1: LEAD_AGENT_ACK_HMAC_KEY not provisioned by runner; cannot sign manifest"
+    [Console]::Error.WriteLine("secret-scan.ps1: LEAD_AGENT_ACK_HMAC_KEY not provisioned by runner; cannot sign manifest")
     exit 2
 }
 # Strict ref-name validation: legitimate refs are [A-Za-z0-9_/.\-+] only.
 # Refusing anything else closes the door on shell-metachar injection through
 # the Arguments string we hand to ProcessStartInfo below.
 if ($UpstreamRev -notmatch '^[A-Za-z0-9_/.\-+]+$') {
-    Write-Error "secret-scan.ps1: invalid upstream rev format: $UpstreamRev"
+    [Console]::Error.WriteLine("secret-scan.ps1: invalid upstream rev format: $UpstreamRev")
     exit 2
 }
 if (-not $WorktreePath) {
     $WorktreePath = if ($env:LEAD_AGENT_WORKTREE) { $env:LEAD_AGENT_WORKTREE } else { (Get-Location).Path }
 }
 if (-not (Test-Path -LiteralPath $WorktreePath -PathType Container)) {
-    Write-Error "secret-scan.ps1: worktree path does not exist: $WorktreePath"
+    [Console]::Error.WriteLine("secret-scan.ps1: worktree path does not exist: $WorktreePath")
     exit 2
 }
 if (-not (Test-Path -LiteralPath (Join-Path $WorktreePath '.git'))) {
-    Write-Error "secret-scan.ps1: $WorktreePath is not a git worktree (.git missing)"
+    [Console]::Error.WriteLine("secret-scan.ps1: $WorktreePath is not a git worktree (.git missing)")
     exit 2
 }
 $gitBin = Get-Command 'git.exe' -CommandType Application -ErrorAction SilentlyContinue
@@ -81,12 +81,12 @@ function Invoke-LeadGit([string]$Cwd, [string]$ArgString) {
 if (-not $Branch) {
     $r = Invoke-LeadGit $WorktreePath 'rev-parse --abbrev-ref HEAD'
     if ($r.ExitCode -ne 0) {
-        Write-Error "secret-scan.ps1: cannot determine branch via git rev-parse: $($r.Stderr)"
+        [Console]::Error.WriteLine("secret-scan.ps1: cannot determine branch via git rev-parse: $($r.Stderr)")
         exit 2
     }
     $Branch = $r.Stdout.Trim()
     if (-not $Branch) {
-        Write-Error "secret-scan.ps1: empty branch name from rev-parse"
+        [Console]::Error.WriteLine("secret-scan.ps1: empty branch name from rev-parse")
         exit 2
     }
 }
@@ -95,7 +95,7 @@ if (-not $Branch) {
 $diffArgs = '-c core.autocrlf=false diff "{0}..HEAD" --no-textconv --no-renames --no-color --binary' -f $UpstreamRev
 $d = Invoke-LeadGit $WorktreePath $diffArgs
 if ($d.ExitCode -ne 0) {
-    Write-Error "secret-scan.ps1: git diff failed (exit $($d.ExitCode)): $($d.Stderr)"
+    [Console]::Error.WriteLine("secret-scan.ps1: git diff failed (exit $($d.ExitCode)): $($d.Stderr)")
     exit 2
 }
 $diffText      = $d.Stdout
@@ -105,7 +105,7 @@ $diffByteCount = $diffBytes.Length
 # --- HALT >10 MB (regex-DoS guard, V6-M2) ----------------------------------
 $tenMB = 10 * 1024 * 1024
 if ($diffByteCount -gt $tenMB) {
-    Write-Error "secret-scan.ps1: diff is $diffByteCount bytes (>10MB); HALT to prevent regex DoS"
+    [Console]::Error.WriteLine("secret-scan.ps1: diff is $diffByteCount bytes (>10MB); HALT to prevent regex DoS")
     exit 2
 }
 
@@ -177,7 +177,7 @@ function Test-DiffForSecrets([string]$Text) {
 $denyHits = Test-DiffForSecrets $diffText
 if ($denyHits.Count -gt 0) {
     $names = ($denyHits | Select-Object -Unique) -join ', '
-    Write-Error "secret-scan.ps1 DENY: deny-pattern match: $names. Scrub diff and rerun."
+    [Console]::Error.WriteLine("secret-scan.ps1 DENY: deny-pattern match: $names. Scrub diff and rerun.")
     exit 2
 }
 
@@ -204,7 +204,7 @@ foreach ($run in $base64Re.Matches($diffText)) {
     $b64Hits = Test-DiffForSecrets $decodedText
     if ($b64Hits.Count -gt 0) {
         $names = ($b64Hits | Select-Object -Unique) -join ', '
-        Write-Error "secret-scan.ps1 DENY: pattern match inside base64 blob ($($run.Length) chars): $names. Scrub and rerun."
+        [Console]::Error.WriteLine("secret-scan.ps1 DENY: pattern match inside base64 blob ($($run.Length) chars): $names. Scrub and rerun.")
         exit 2
     }
 }
@@ -220,7 +220,7 @@ $shCsp.Dispose()
 # --- resolve upstream-rev to commit sha ------------------------------------
 $rUp = Invoke-LeadGit $WorktreePath ('rev-parse --verify "{0}^{{commit}}"' -f $UpstreamRev)
 if ($rUp.ExitCode -ne 0) {
-    Write-Error "secret-scan.ps1: cannot resolve upstream rev '$UpstreamRev': $($rUp.Stderr)"
+    [Console]::Error.WriteLine("secret-scan.ps1: cannot resolve upstream rev '$UpstreamRev': $($rUp.Stderr)")
     exit 2
 }
 $upstreamSha = $rUp.Stdout.Trim()
@@ -250,7 +250,7 @@ $bodyJson = $body | ConvertTo-Json -Compress -Depth 10
 # --- HMAC-SHA256 sign ------------------------------------------------------
 $keyHex = $env:LEAD_AGENT_ACK_HMAC_KEY -replace '[^0-9A-Fa-f]', ''
 if ($keyHex.Length -lt 64) {
-    Write-Error "secret-scan.ps1: HMAC key shorter than 32 bytes (got $([int]($keyHex.Length / 2)) bytes hex)"
+    [Console]::Error.WriteLine("secret-scan.ps1: HMAC key shorter than 32 bytes (got $([int]($keyHex.Length / 2)) bytes hex)")
     exit 2
 }
 $keyBytes = New-Object byte[] ($keyHex.Length / 2)

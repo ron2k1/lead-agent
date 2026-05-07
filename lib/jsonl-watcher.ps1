@@ -38,11 +38,11 @@ $RegexOpts = [System.Text.RegularExpressions.RegexOptions]::Compiled -bor `
 
 # Preflight 1: lead-mode env.
 if ($env:LEAD_AGENT -ne '1') {
-    Write-Error "jsonl-watcher.ps1: not running in a lead-mode session (LEAD_AGENT != 1)"
+    [Console]::Error.WriteLine("jsonl-watcher.ps1: not running in a lead-mode session (LEAD_AGENT != 1)")
     exit 2
 }
 if ($env:LEAD_AGENT_MODE -ne 'OVERWATCH') {
-    Write-Error "jsonl-watcher.ps1: only valid in OVERWATCH mode (got LEAD_AGENT_MODE=$env:LEAD_AGENT_MODE)"
+    [Console]::Error.WriteLine("jsonl-watcher.ps1: only valid in OVERWATCH mode (got LEAD_AGENT_MODE=$env:LEAD_AGENT_MODE)")
     exit 2
 }
 
@@ -51,17 +51,17 @@ if (-not $JsonlPath -and $env:LEAD_AGENT_WATCH_TARGET) {
     $JsonlPath = $env:LEAD_AGENT_WATCH_TARGET
 }
 if (-not $JsonlPath) {
-    Write-Error "jsonl-watcher.ps1: no target (-JsonlPath or LEAD_AGENT_WATCH_TARGET required)"
+    [Console]::Error.WriteLine("jsonl-watcher.ps1: no target (-JsonlPath or LEAD_AGENT_WATCH_TARGET required)")
     exit 2
 }
 
 # Preflight 3: bounds.
 if ($MaxLines -lt 1 -or $MaxLines -gt 5000) {
-    Write-Error "jsonl-watcher.ps1: MaxLines $MaxLines out of range [1,5000]"
+    [Console]::Error.WriteLine("jsonl-watcher.ps1: MaxLines $MaxLines out of range [1,5000]")
     exit 2
 }
 if ($MaxFieldChars -lt 1 -or $MaxFieldChars -gt 4096) {
-    Write-Error "jsonl-watcher.ps1: MaxFieldChars $MaxFieldChars out of range [1,4096]"
+    [Console]::Error.WriteLine("jsonl-watcher.ps1: MaxFieldChars $MaxFieldChars out of range [1,4096]")
     exit 2
 }
 

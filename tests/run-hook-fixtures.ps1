@@ -226,7 +226,7 @@ Write-Host "[run-hook-fixtures] baseline worktree: $($baselineEnv.LEAD_WORKTREE_
 
 $fixtureFiles = Get-ChildItem -LiteralPath $FixturesDir -Filter 'C-*.json' | Sort-Object Name
 if ($fixtureFiles.Count -eq 0) {
-    Write-Error "no fixtures found at $FixturesDir"
+    [Console]::Error.WriteLine("no fixtures found at $FixturesDir")
     exit 2
 }
 
