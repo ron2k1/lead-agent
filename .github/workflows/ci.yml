@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  syntax:
+    name: Syntax + ASCII checks
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile Python sources
+        shell: pwsh
+        run: |
+          $files = @(
+            "lib/canonicalize-path.py",
+            "lib/allowlist_parser.py",
+            "lib/lead-pretool-hook.py",
+            "lib/sanitize-jsonl.py"
+          )
+          foreach ($f in $files) {
+            python -m py_compile $f
+            if ($LASTEXITCODE -ne 0) { throw "compile failed: $f" }
+          }
+
+      - name: Parse PowerShell sources
+        shell: pwsh
+        run: |
+          $files = @(
+            "install.ps1",
+            "launch.ps1",
+            "runner.ps1",
+            "lib/install-hook.ps1"
+          )
+          foreach ($f in $files) {
+            $errors = $null
+            $tokens = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $f).Path, [ref]$tokens, [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error $_ }
+              throw "parse failed: $f"
+            }
+          }
+
+      - name: Validate JSON
+        shell: pwsh
+        run: |
+          $files = @(
+            "lib/allowlist.json",
+            "lib/path-guard.json",
+            "lib/mcp-allow.json"
+          )
+          foreach ($f in $files) {
+            try {
+              Get-Content $f -Raw | ConvertFrom-Json | Out-Null
+            } catch {
+              throw "JSON parse failed: $f -- $_"
+            }
+          }
+
+      - name: ASCII-only check on shipped files
+        shell: pwsh
+        run: |
+          $globs = @(
+            "lib/*.py",
+            "lib/*.ps1",
+            "lib/*.json",
+            "*.ps1",
+            "*.cmd",
+            "*.md",
+            ".github/**/*.md",
+            ".github/**/*.yml"
+          )
+          $bad = @()
+          foreach ($g in $globs) {
+            Get-ChildItem -Path . -Recurse -File -Include (Split-Path $g -Leaf) `
+              | Where-Object { $_.FullName -like "*\$($g.Replace('/', '\'))" -or $_.FullName -like "*$($g.Replace('/', '\'))" } `
+              | ForEach-Object {
+                $bytes = [System.IO.File]::ReadAllBytes($_.FullName)
+                for ($i = 0; $i -lt $bytes.Length; $i++) {
+                  if ($bytes[$i] -gt 127) {
+                    $bad += "$($_.FullName.Substring((Get-Location).Path.Length + 1)):byte-$i:0x$('{0:X2}' -f $bytes[$i])"
+                    break
+                  }
+                }
+              }
+          }
+          if ($bad.Count -gt 0) {
+            $bad | ForEach-Object { Write-Error $_ }
+            throw "non-ASCII bytes in shipped files"
+          }

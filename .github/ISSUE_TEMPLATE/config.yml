@@ -1,0 +1,10 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/ron2k1/lead-agent/discussions
+    about: For questions, ideas, and general discussion, use Discussions
+      rather than opening an issue.
+  - name: Security report
+    url: https://github.com/ron2k1/lead-agent/blob/main/SECURITY.md
+    about: For security findings, follow the disclosure process in
+      SECURITY.md. Do not open a public issue.
