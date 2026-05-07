@@ -1,6 +1,6 @@
 ---
 name: lead-agent
-description: Use when the user types `/lead-agent` (optionally with a subdirectory hint) to spawn a long-lived "lieutenant" Claude Code instance in its own Windows Terminal tab on Screen 2. The lieutenant runs alongside the main CC and operates in one of four modes (OVERWATCH / ADVISOR / BUILDER / TOOLSMITH) determined by the system prompt and runtime allowlist. The slash command must be invoked from main CC (not from inside the lead itself); SKILL.md will detect lead-self-target and refuse. See DESIGN.md for the full contract; v1.0 shipped 2026-05-06 with the runtime gate ACTIVE; v1.1.0 expanded the pin set to 12 files, shipped F-01/F-02 stale-lock auto-recovery, and ships secret-scan + jsonl-watcher as production-grade libraries (BUILDER push + OVERWATCH ingest wiring lands in v1.1.1). ADVISOR + TOOLSMITH modes are READY for daily use; BUILDER + OVERWATCH are PARTIAL (libraries production-grade in v1.1.0; consumer wiring lands in v1.1.1).
+description: Use when the user types `/lead-agent` (optionally with a subdirectory hint) to spawn a long-lived "lieutenant" Claude Code instance in its own Windows Terminal tab on Screen 2. The lieutenant runs alongside the main CC and operates in one of four modes (OVERWATCH / ADVISOR / BUILDER / TOOLSMITH) determined by the system prompt and runtime allowlist. The slash command must be invoked from main CC (not from inside the lead itself); SKILL.md will detect lead-self-target and refuse. See DESIGN.md for the full contract; v1.0 shipped 2026-05-06 with the runtime gate ACTIVE; v1.1.0 expanded the pin set to 12 files, shipped F-01/F-02 stale-lock auto-recovery, and ships secret-scan + jsonl-watcher as production-grade libraries; v1.1.1 (2026-05-07) is a distribution-first patch that closes the host-hook bootstrap gap (`-Bootstrap` flag + bundled stub) and fixes two latent runtime bugs (runner.ps1 PATH scrub, launch.ps1 -Dry temp leak). ADVISOR + TOOLSMITH modes are READY for daily use; BUILDER + OVERWATCH remain PARTIAL (libraries production-grade since v1.1.0; consumer wiring deferred to v1.2 alongside the task-board work).
 ---
 
 # lead-agent
@@ -77,7 +77,7 @@ Closes F-01 + F-03 + F-04; see DESIGN.md section 15.10.
 
 ## Files
 
-| File | Purpose | Status (v1.1.0) |
+| File | Purpose | Status (v1.1.1) |
 |---|---|---|
 | `install.ps1` | User-facing bootstrap (preflight + anchor stamp + delegate to install-hook.ps1) | Active |
 | `launch.ps1` | Entrypoint: lockfile + preflight + manifest + WT spawn; F-01 stale-lock reclaim live | Active (launch + lock + manifest with HMAC key wired; -Force reclaims via PID + Win32_Process.CreationDate) |
@@ -94,24 +94,26 @@ Closes F-01 + F-03 + F-04; see DESIGN.md section 15.10.
 | `lib/sanitize-jsonl.py` | JSONL sanitizer (consumed by `jsonl-watcher.ps1` OVERWATCH ingest loop) | Active |
 | `lib/lead-pretool-hook.py` | The runtime gate (PreToolUse hook); trust-anchor SHA stamped at install time | Active |
 | `lib/install-hook.ps1` | Idempotent hook chain installer (`-Repair`, `-RepinNotify`, `-Uninstall`, `-Force`) | Active |
-| `lib/secret-scan.ps1` | Pre-push secret scanner: 15-pattern canonical regex set + base64 second-pass + HMAC-SHA256-signed manifest writer | Library production-grade in v1.1.0; BUILDER pre-push **hook wiring** lands in v1.1.1 |
-| `lib/jsonl-watcher.ps1` | Sanitizing JSONL tail (role-prefix neutralizer + 15-pattern secret scrub) + brake-list writer for OVERWATCH | Library production-grade in v1.1.0; OVERWATCH **ingest-loop wiring** lands in v1.1.1 |
-| `README.md` | User-facing install/use/uninstall doc | Active (v1.1.0) |
+| `lib/secret-scan.ps1` | Pre-push secret scanner: 15-pattern canonical regex set + base64 second-pass + HMAC-SHA256-signed manifest writer | Library production-grade in v1.1.0; BUILDER pre-push **hook wiring** deferred to v1.2 |
+| `lib/jsonl-watcher.ps1` | Sanitizing JSONL tail (role-prefix neutralizer + 15-pattern secret scrub) + brake-list writer for OVERWATCH | Library production-grade in v1.1.0; OVERWATCH **ingest-loop wiring** deferred to v1.2 |
+| `lib/windows_shell_safety_stub.py` | Bundled 50-line ASCII no-op host hook (chain anchor for fresh cloners). Drained-stdin / exits 0. Allow-all on its own; lead-agent gate runs ON TOP when `LEAD_AGENT=1`. | Active (v1.1.1; copied by `install.ps1 -Bootstrap` to `~/.claude/hooks/windows_shell_safety.py`. NOT pinned in `lib/lead-extension.sha256` by design.) |
+| `README.md` | User-facing install/use/uninstall doc | Active (v1.1.1) |
 
 ## Mode readiness
 
-| Mode | Status (v1.1.0) | Notes |
+| Mode | Status (v1.1.1) | Notes |
 |---|---|---|
 | ADVISOR | READY | Full read/search/web on a deny-by-default tool surface. Recommended default. |
 | TOOLSMITH | READY | Skill writes go through path-guard with `lib/` excluded. Safe for skill-creator workflows. |
-| BUILDER | PARTIAL | Worktree edits + draft PRs work. Secret-scan **library** is production-grade in v1.1.0 (15-pattern canonical set + HMAC-signed manifest); the BUILDER pre-push **hook wiring** that calls it is still stubbed and lands in v1.1.1. Treat as "code-review buddy" until v1.1.1; the lieutenant cannot autonomously push to a remote yet. |
-| OVERWATCH | PARTIAL | Hook denies tool calls correctly. JSONL **library** (sanitizer + brake-list writer) is production-grade in v1.1.0; the OVERWATCH **ingest-loop wiring** that tails the lieutenant's JSONL is still stubbed and lands in v1.1.1. |
+| BUILDER | PARTIAL | Worktree edits + draft PRs work. Secret-scan **library** is production-grade since v1.1.0 (15-pattern canonical set + HMAC-signed manifest); the BUILDER pre-push **hook wiring** that calls it is still stubbed and deferred to v1.2 (alongside the v1.2 task-board work). Treat as "code-review buddy" until v1.2; the lieutenant cannot autonomously push to a remote yet. |
+| OVERWATCH | PARTIAL | Hook denies tool calls correctly. JSONL **library** (sanitizer + brake-list writer) is production-grade since v1.1.0; the OVERWATCH **ingest-loop wiring** that tails the lieutenant's JSONL is still stubbed and deferred to v1.2. |
 
-## Runtime gate status (v1.1.0)
+## Runtime gate status (v1.1.1)
 
 - All 12 pinned runtime-gate components are ACTIVE (canonicalizer, allowlist parser, hook, JSONL sanitizer, install-hook, secret-scan library, jsonl-watcher library, launch.ps1, runner.ps1 + 3 JSON pins). v1.0.0 shipped 9; v1.1.0 walkback added secret-scan.ps1 + jsonl-watcher.ps1 (library production-grade) and runner.ps1 (Codex Wave 3c convergence on the unpinned-runtime-code BLOCKER).
 - Trust anchor pattern (C7 v0.6) wired: `_ANCHOR_SHA` constant in `lead-pretool-hook.py` is stamped by `install.ps1` from the local `lib/install-hook.ps1` SHA256 BEFORE the pin manifest is written, so distribution-time line-ending drift cannot break the running gate.
 - Bootstrap installer `install.ps1` provides preflight + idempotent install + `-Verify` 6-probe end-to-end check (marker block, trust-anchor file, `_ANCHOR_SHA` constant, pin-manifest self-hash, `launch.ps1 -Dry`, drift detector) + `-Force`.
-- `lib/secret-scan.ps1` and `lib/jsonl-watcher.ps1` ship as production-grade libraries in v1.1.0; the BUILDER pre-push hook + OVERWATCH ingest-loop **wiring** that consumes them is still stubbed and lands in v1.1.1. The deny-by-default invariant holds in both modes (the hook still denies dangerous calls); the only thing missing is the autonomous-flow plumbing that would actually invoke these libraries.
-- `launch.ps1 -Force` reclaims orphaned lockfiles (F-01 live in v1.1.0) after PID + Win32_Process.CreationDate stale-detection. `runner.ps1` 3-layer lock-release (try/finally + Register-EngineEvent + SetConsoleCtrlHandler P/Invoke; F-02 live in v1.1.0) means orphan locks are now rare to begin with.
-- See DESIGN.md section 15.8 for the residuals list and CHANGELOG.md for v1.0 -> v1.1.0 detail.
+- `lib/secret-scan.ps1` and `lib/jsonl-watcher.ps1` ship as production-grade libraries since v1.1.0; the BUILDER pre-push hook + OVERWATCH ingest-loop **wiring** that consumes them is still stubbed and deferred to v1.2. The deny-by-default invariant holds in both modes (the hook still denies dangerous calls); the only thing missing is the autonomous-flow plumbing that would actually invoke these libraries.
+- `launch.ps1 -Force` reclaims orphaned lockfiles (F-01 live since v1.1.0) after PID + Win32_Process.CreationDate stale-detection. `runner.ps1` 3-layer lock-release (try/finally + Register-EngineEvent + SetConsoleCtrlHandler P/Invoke; F-02 live since v1.1.0) means orphan locks are now rare to begin with. v1.1.1 also released the lockfile + manifest temp on `launch.ps1 -Dry` (was leaking on every `install.ps1 -Verify` probe 5 invocation).
+- v1.1.1 added `install.ps1 -Bootstrap` to copy `lib/windows_shell_safety_stub.py` to `~/.claude/hooks/windows_shell_safety.py` for fresh cloners who do not already have a host hook. The stub is a chain anchor only (allow-all on its own); the lead-agent gate runs ON TOP when `LEAD_AGENT=1`. NOT pinned in `lib/lead-extension.sha256` by design (users are expected to replace or harden their own host hook).
+- See DESIGN.md section 15.8 for the residuals list and CHANGELOG.md for v1.0 -> v1.1.0 -> v1.1.1 detail.
