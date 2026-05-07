@@ -47,13 +47,74 @@ class AllowlistError(Exception):
 # tokenize + load
 # ---------------------------------------------------------------------------
 
+# Shell-control tokens with no legitimate role in any allowlist argv shape.
+# Because we tokenize with punctuation_chars=True, shlex emits the operators
+# below as their own tokens regardless of whitespace -- 'git status;rm'
+# tokenizes to ['git', 'status', ';', 'rm'] just like 'git status ; rm' does.
+# Multi-character forms ('&&', '||', '<<', '<<<') are returned as a single
+# punctuation-run token, so a single membership test catches every form.
+_SHELL_CONTROL_TOKENS = frozenset({
+    ";", "&&", "||", "|", "&",
+    ">", ">>", "<", "<<", "<<<",
+    "(", ")",
+})
+
+# Sigils that trigger command substitution under bash and PowerShell. shlex's
+# punctuation_chars set does not include '$' or backtick, and bash expands
+# both even inside double quotes, so we scan the raw input. False positives
+# (a literal '$(50)' or markdown '`code`' inside a commit message) are
+# accepted as the cost: bash would execute either form, so denying here
+# matches what the runtime would do anyway.
+_COMMAND_SUBSTITUTION_SIGILS = ("$(", "`")
+
+
 def tokenize(cmd: str) -> list:
-    """B4 v0.4: Windows-safe argv tokenization."""
+    """B4 v0.4 + Wave3b W3-NEW3: Windows-safe argv tokenization with
+    command-chain-bypass guard.
+
+    The Bash tool ships the raw string to bash/cmd.exe; shlex is only an
+    argv-shape parse-aid for rule matching. Without the guards below, a
+    rule with a 'rest' capture (allowedFlags filter) matches argv like
+    ['git', 'log', ';', 'rm', '-rf', '/'] because _validate_capture_token
+    only restricts '-'-prefixed flags -- and bash sees the chained pipeline
+    in the raw input regardless. Three layers, all gated here:
+      1. Newlines/CRs deny -- statement separators with no single-command use.
+      2. Command-substitution sigils deny -- '$(' and backtick survive in
+         double-quoted strings and would still expand at runtime.
+      3. Shell-control tokens deny after punctuation-aware tokenization --
+         ';', '&&', '|', etc. regardless of surrounding whitespace.
+
+    Uses shlex.shlex(punctuation_chars=True, whitespace_split=True) instead
+    of shlex.split so that the operators above tokenize as standalone tokens
+    even when punctuation-adjacent ('cmd1;cmd2' -> ['cmd1', ';', 'cmd2']).
+    Default shlex.split would have returned ['cmd1;cmd2'], which our
+    membership check would silently miss.
+    """
     if not isinstance(cmd, str):
         raise AllowlistError("denied: non-string command")
-    if os.name == "nt":
-        return shlex.split(cmd, posix=False)
-    return shlex.split(cmd, posix=True)
+    if "\n" in cmd or "\r" in cmd:
+        raise AllowlistError("denied: multi-line command disallowed")
+    for sigil in _COMMAND_SUBSTITUTION_SIGILS:
+        if sigil in cmd:
+            raise AllowlistError("denied: command substitution disallowed")
+    # Use posix=True regardless of os.name -- on Windows the Bash tool runs
+    # Git Bash (MSYS bash, posix semantics), and PowerShell quoting collapses
+    # to posix-equivalent for our purposes. Pre-W3-NEW3 the function used
+    # posix=False on Windows, which incorrectly treats quotes as literal
+    # punctuation when combined with punctuation_chars=True (the legit case
+    # 'git log --grep="a;b"' would falsely tokenize as ['--grep="a', ';',
+    # 'b"'] under posix=False). posix=True respects quote-grouping cleanly.
+    lex = shlex.shlex(cmd, posix=True, punctuation_chars=True)
+    lex.whitespace_split = True
+    try:
+        tokens = list(lex)
+    except ValueError as e:
+        # e.g. unclosed quote
+        raise AllowlistError(f"denied: unparsable command ({e})")
+    for tok in tokens:
+        if tok in _SHELL_CONTROL_TOKENS:
+            raise AllowlistError("denied: shell metacharacter disallowed")
+    return tokens
 
 
 def load_allowlist(path: str) -> dict:
