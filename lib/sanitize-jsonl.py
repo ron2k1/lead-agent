@@ -8,7 +8,7 @@
 # back atomically. Runs as a sidecar invoked by lib/jsonl-watcher.ps1.
 #
 # v1.0 PLACEHOLDER STATUS:
-#   This file is in the 9-file pin set (s12.8) so that lib/install-hook.ps1
+#   This file is in the 12-file pin set (s12.8) so that lib/install-hook.ps1
 #   can compute a stable SHA256 over the OVERWATCH path. The runtime gate
 #   (lib/lead-pretool-hook.py) NEVER executes this file - it only verifies
 #   the pinned hash matches on every fire. Until v1.1 wires the watcher,

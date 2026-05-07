@@ -33,11 +33,12 @@ if (-not $FixturesDir) {
     $FixturesDir = Join-Path $PSScriptRoot 'fixtures\hook'
 }
 
-# 11-file pin set MIRRORS lead-pretool-hook.py:_PIN_FILES. launch.ps1 lives
-# in skill root; the rest in lib/. Order is irrelevant for verification
-# but stable for diff-readability.
-# v1.1.0: added secret-scan.ps1 + jsonl-watcher.ps1 (W3-NEW2 -- closes the
-# orphan-attack surface where helpers shipped outside the pin chain).
+# 12-file pin set MIRRORS lead-pretool-hook.py:_PIN_FILES. launch.ps1 +
+# runner.ps1 live in skill root; the rest in lib/. Order is irrelevant for
+# verification but stable for diff-readability.
+# v1.1.0 walkback: added secret-scan.ps1 + jsonl-watcher.ps1 + runner.ps1
+# (W3-NEW2 + Codex Wave 3c convergence -- closes the orphan-attack surface
+# where helpers shipped outside the pin chain).
 $PinFiles = @(
     @{ Name = 'allowlist.json';        Path = Join-Path $LibDir   'allowlist.json' }
     @{ Name = 'path-guard.json';       Path = Join-Path $LibDir   'path-guard.json' }
@@ -50,6 +51,7 @@ $PinFiles = @(
     @{ Name = 'secret-scan.ps1';       Path = Join-Path $LibDir   'secret-scan.ps1' }
     @{ Name = 'jsonl-watcher.ps1';     Path = Join-Path $LibDir   'jsonl-watcher.ps1' }
     @{ Name = 'launch.ps1';            Path = Join-Path $RepoRoot 'launch.ps1' }
+    @{ Name = 'runner.ps1';            Path = Join-Path $RepoRoot 'runner.ps1' }
 )
 
 function Get-FileSha256Hex {

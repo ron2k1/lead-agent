@@ -14,7 +14,7 @@
 ## Status
 
 v1.1.0 shipped 2026-05-06 as a walkback over v1.0.x. The runtime gate is
-live and the 11-file pin chain (was 9 in v1.0) plus trust anchor are
+live and the 12-file pin chain (was 9 in v1.0) plus trust anchor are
 end-to-end verified. ADVISOR and TOOLSMITH modes are READY for daily use.
 BUILDER's pre-push secret scanner (`lib/secret-scan.ps1`) and OVERWATCH's
 JSONL watcher (`lib/jsonl-watcher.ps1`) shipped as production-grade
@@ -193,11 +193,13 @@ PreToolUse fires:
 1. Verifies `LEAD_AGENT=1`. If unset, the hook delegates to the host
    `windows_shell_safety.py` (the gate is dormant in non-lead sessions).
    If set, the lead gate takes over.
-2. Re-verifies the 11-file pin manifest at `lib/lead-extension.sha256` on
+2. Re-verifies the 12-file pin manifest at `lib/lead-extension.sha256` on
    every call (not just at launch). Closes the v0.4 SE-S2
    swap-after-startup window. Any drift fails closed. v1.1.0 expanded
-   the manifest from 9 files to 11 to cover `secret-scan.ps1`,
-   `jsonl-watcher.ps1`, and `runner.ps1` (W3-NEW2).
+   the manifest from 9 files to 12 to cover `secret-scan.ps1`,
+   `jsonl-watcher.ps1`, and `runner.ps1` (W3-NEW2 plus Codex Wave 3c
+   convergence on runner.ps1, which holds the launch lock and runs
+   F-02's three-layer release handlers).
 3. Re-verifies the trust anchor at
    `~/.claude/lead-agent-trust-anchor.txt` matches the SHA constant
    `_ANCHOR_SHA` in `lib/lead-pretool-hook.py`, which `install.ps1`
@@ -284,9 +286,10 @@ baseline). A Linux port would replace both layers; see
 **My fork edits a file under `lib/`. Why does the gate now refuse
 everything?**
 
-The pin manifest at `lib/lead-extension.sha256` covers eleven files
+The pin manifest at `lib/lead-extension.sha256` covers twelve files
 plus a self-hash (was nine in v1.0; v1.1.0 added `secret-scan.ps1`,
-`jsonl-watcher.ps1`, and `runner.ps1` per W3-NEW2). Editing any of
+`jsonl-watcher.ps1`, and `runner.ps1` per W3-NEW2 + Codex Wave 3c
+convergence). Editing any of
 them invalidates the chain and the hook fail-closes on every call.
 Re-pin with `install.ps1` to regenerate the manifest, or
 `lib/install-hook.ps1 -RepinNotify` for the notify-only path.
@@ -405,14 +408,16 @@ within 5 business days.
   pinned. A Unicode normalization pass on a fork will break the trust
   chain. If you need to add docs in another language, put them in a
   separate file and exclude it from the pin set.
-- The pin manifest at `lib/lead-extension.sha256` covers eleven files
+- The pin manifest at `lib/lead-extension.sha256` covers twelve files
   (allowlist.json, path-guard.json, mcp-allow.json, notify-sh.sha256,
   canonicalize-path.py, allowlist_parser.py, lead-pretool-hook.py,
   sanitize-jsonl.py, launch.ps1, secret-scan.ps1, jsonl-watcher.ps1,
   runner.ps1) plus a self-hash. v1.1.0 added the last three after
   W3-NEW2 flagged them as live runtime files that v1.0 left
-  unsanctioned. If you fork and change any of these, run `install.ps1`
-  to re-pin.
+  unsanctioned. (Codex Wave 3c then caught that the original walkback
+  added two of the three but missed runner.ps1 -- the file that holds
+  the launch lock and runs F-02's three-layer release handlers.) If
+  you fork and change any of these, run `install.ps1` to re-pin.
 - The published `_ANCHOR_SHA` constant in `lib/lead-pretool-hook.py`
   reflects the author's install. `install.ps1` overwrites it with YOUR
   `install-hook.ps1` SHA on first run. Do not commit your local anchor
@@ -455,7 +460,7 @@ within 5 business days.
 | `lib/path-guard.json` | Single source of truth for write-deny globs. |
 | `lib/mcp-allow.json` | Positive MCP allowlist. |
 | `lib/notify-sh.sha256` | Pinned hash of `~/.claude/tools/notify.sh`. |
-| `lib/lead-extension.sha256` | 11-file pin manifest plus self-hash. |
+| `lib/lead-extension.sha256` | 12-file pin manifest plus self-hash. |
 | `lib/secret-scan.ps1` | BUILDER pre-push secret scanner. PRODUCTION-GRADE LIBRARY in v1.1.0; BUILDER pre-push hook wiring lands in v1.1.1. |
 | `lib/jsonl-watcher.ps1` | OVERWATCH transcript tailer. PRODUCTION-GRADE LIBRARY in v1.1.0; OVERWATCH ingest loop wiring lands in v1.1.1. |
 | `lib/path-guard.ps1` | Standalone path-guard CLI. STUB. The path-guard logic itself runs inside the hook and is unaffected. |

@@ -2484,7 +2484,7 @@ v1.0 implements the runtime gate end-to-end. The skill is `lead-agent gate ACTIV
 | Runtime hook | PreToolUse gate; deny-by-default; reads `LEAD_*` env vars; verifies pin manifest before running | `lib/lead-pretool-hook.py` | Pinned + `_ANCHOR_SHA` constant terminates trust chain |
 | Hook installer | Idempotent marker-block insertion into `~/.claude/hooks/windows_shell_safety.py`; atomic temp+rename; `-Repair` / `-RepinNotify` / `-Uninstall` / `-Force` | `lib/install-hook.ps1` | Self-anchor: install-hook.ps1 SHA == trust-anchor.txt content == `_ANCHOR_SHA` constant |
 | JSONL sanitizer library | Drop-in module for the OVERWATCH watcher (the watcher itself is still stub) | `lib/sanitize-jsonl.py` | Pinned |
-| Pin manifest | 9-file SHA256 pin set + self-hash chain | `lib/lead-extension.sha256` | Self-anchor |
+| Pin manifest | 12-file SHA256 pin set + self-hash chain | `lib/lead-extension.sha256` | Self-anchor |
 | Runner env-var contract | All 11 `LEAD_*` env vars set in `runner.ps1`; min-PATH + env-scrub keep-set documented | `runner.ps1` | n/a (runtime-only) |
 | Bootstrap installer | User-facing `install.ps1`: preflight + anchor-SHA stamp + delegate to install-hook.ps1 + 5-probe `-Verify` | `install.ps1` | Stamps `_ANCHOR_SHA` BEFORE pin manifest write |
 | Distribution invariant | `_ANCHOR_SHA` is computed at install time from local `install-hook.ps1` bytes, not baked-in by author. This means a fork/clone with different line endings still produces a self-consistent gate. | `install.ps1::Update-AnchorConstant` | Closes the "stale anchor pinned by stale bytes" gotcha |

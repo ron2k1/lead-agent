@@ -26,7 +26,7 @@ param(
 #   5. [System.IO.File]::Replace(.tmp, hook, .bak2) - atomic same-volume
 #      NTFS replace (Move-Item -Force is non-atomic across volumes).
 #   6. Re-pin lib/notify-sh.sha256 (if notify.sh present) and
-#      lib/lead-extension.sha256 (9-file pin chain + self-hash).
+#      lib/lead-extension.sha256 (12-file pin chain + self-hash).
 #   7. Write trust-anchor file ~/.claude/lead-agent-trust-anchor.txt with
 #      SHA256 of install-hook.ps1; deny Everyone:Write best-effort.
 #   8. Print the trust-anchor SHA so the user can paste into _ANCHOR_SHA
@@ -77,11 +77,15 @@ $NotifyShaPath  = Join-Path $LibRoot 'notify-sh.sha256'
 $LeadHookPath   = Join-Path $LibRoot 'lead-pretool-hook.py'
 $InstallerPath  = $PSCommandPath
 
-# 11-file pin set (s12.8); order is significant for readability only.
-# v1.1.0 additions: secret-scan.ps1 + jsonl-watcher.ps1 (W3-NEW2). Adding the
-# helpers to the pin chain closes the orphan-attack surface where an attacker
-# could swap them under a running BUILDER/OVERWATCH session (the runtime
-# wiring lands in v1.1.1, but the bytes are now anchored regardless).
+# 12-file pin set (s12.8); order is significant for readability only.
+# v1.1.0 walkback additions: secret-scan.ps1 + jsonl-watcher.ps1 + runner.ps1.
+# Adding helpers to the pin chain closes the orphan-attack surface where an
+# attacker could swap them under a running BUILDER/OVERWATCH session. The
+# secret-scan + jsonl-watcher libraries shipped production-grade in v1.1.0
+# (hook wiring lands in v1.1.1); runner.ps1 was added after Codex Wave 3c
+# REJECT flagged it was live runtime code (3-layer lock release F-02) but
+# unpinned, while CHANGELOG/README claimed it was covered. MUST stay in sync
+# with lead-pretool-hook.py:_PIN_FILES and tests/run-hook-fixtures.ps1.
 $PinFiles = @(
     [pscustomobject]@{ Name='allowlist.json';        Path = (Join-Path $LibRoot   'allowlist.json') }
     [pscustomobject]@{ Name='path-guard.json';       Path = (Join-Path $LibRoot   'path-guard.json') }
@@ -94,6 +98,7 @@ $PinFiles = @(
     [pscustomobject]@{ Name='secret-scan.ps1';       Path = (Join-Path $LibRoot   'secret-scan.ps1') }
     [pscustomobject]@{ Name='jsonl-watcher.ps1';     Path = (Join-Path $LibRoot   'jsonl-watcher.ps1') }
     [pscustomobject]@{ Name='launch.ps1';            Path = (Join-Path $SkillRoot 'launch.ps1') }
+    [pscustomobject]@{ Name='runner.ps1';            Path = (Join-Path $SkillRoot 'runner.ps1') }
 )
 
 # === Helpers ===========================================================

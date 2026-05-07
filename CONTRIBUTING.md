@@ -5,9 +5,10 @@ so contributions follow a slightly stricter discipline than typical OSS.
 
 ## Before you change anything in `lib/`
 
-The 9 files under `lib/` plus `launch.ps1` are covered by a pinned SHA256
-manifest at `lib/lead-extension.sha256`. After ANY edit to a pinned file, you
-must re-run the installer so the manifest is re-pinned:
+The 10 files under `lib/` plus `launch.ps1` and `runner.ps1` (12 in total)
+are covered by a pinned SHA256 manifest at `lib/lead-extension.sha256`.
+After ANY edit to a pinned file, you must re-run the installer so the
+manifest is re-pinned:
 
     & "$env:USERPROFILE\.claude\skills\lead-agent\install.ps1"
 

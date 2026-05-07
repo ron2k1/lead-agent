@@ -14,18 +14,24 @@ matrix is now: ADVISOR + TOOLSMITH READY, BUILDER + OVERWATCH library-ready
 with runtime wiring deferred to v1.1.1.
 
 Driven by codex Wave 3b adversarial re-review (3 BLOCKERs + 4 MAJORs +
-1 MINOR) executed across 9 atomic commits. See `git log v1.0.0..v1.1.0
---oneline` for the per-commit walkback story.
+1 MINOR), then closed by codex Wave 3c convergence pass which independently
+flagged a 4th BLOCKER (runner.ps1 was promised in walkback CHANGELOG/README
+but not actually pinned). Walkback executed across 13 atomic commits.
+See `git log v1.0.0..v1.1.0 --oneline` for the per-commit walkback story.
 
 ### Added
 
-- 11-file pin manifest (was 9 in v1.0.0). Now covers `secret-scan.ps1`,
-  `jsonl-watcher.ps1`, `runner.ps1` in addition to v1.0.0's nine files.
-  Closes W3-NEW2 BLOCKER (codex flagged the v1.0.0 set as incomplete --
-  three live runtime files were unsanctioned).
+- 12-file pin manifest (was 9 in v1.0.0). Now covers `secret-scan.ps1`,
+  `jsonl-watcher.ps1`, and `runner.ps1` in addition to v1.0.0's nine
+  files. Closes W3-NEW2 BLOCKER (codex Wave 3b flagged the v1.0.0 set
+  as incomplete -- three live runtime files were unsanctioned) and the
+  Wave 3c convergence BLOCKER (the original walkback added secret-scan
+  + jsonl-watcher to the tuple but missed runner.ps1, which holds the
+  launch lock and runs F-02's three-layer lock-release handlers in the
+  trust boundary).
 - Trust anchor `_ANCHOR_SHA` constant in `lead-pretool-hook.py` re-stamped
   for the expanded pin set:
-  `60ac9d6c8c3eb49e9c95416bbbecbd3664fafcdb333401ab4caace888a714b48`.
+  `9f4d25e5caea227f37401956ec4e9ce67737500fff5b9ea75ef788498e24fce4`.
 - Production-grade `lib/secret-scan.ps1`: 15-pattern HMAC-signed scan-pass
   manifest replaces the v1.0.0 fail-closed stub. Library is ready; the
   BUILDER pre-push hook that calls it remains stubbed in v1.1.0 (see

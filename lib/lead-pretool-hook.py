@@ -4,7 +4,7 @@
 # Pipeline per fire (fail-closed, in strict order):
 #   1. Env contract               (s12.1)
 #   2. Trust anchor               (s12.6 step 10 + s12.8 step 1; C7 v0.6)
-#   3. 9-file pin chain           (s12.8 with self-hash terminator; CM1 v0.5)
+#   3. 12-file pin chain          (s12.8 with self-hash terminator; CM1 v0.5)
 #   4. wcmatch importability      (s12.3 _se_n3_note; V8-2 v0.9)
 #   5. Tool dispatch              (Bash s12.2 / Edit-Write s12.3 / Read s12.3 /
 #                                  MCP s12.4 / Agent s12.9 / internal-tools)
@@ -42,7 +42,7 @@ import traceback
 # entry until you paste the SHA below. After running install-hook.ps1 once,
 # replace the empty string with the printed SHA. From then on the hook is
 # fully bootstrapped and any tampering of install-hook.ps1 fails closed.
-_ANCHOR_SHA = "60ac9d6c8c3eb49e9c95416bbbecbd3664fafcdb333401ab4caace888a714b48"
+_ANCHOR_SHA = "9f4d25e5caea227f37401956ec4e9ce67737500fff5b9ea75ef788498e24fce4"
 
 
 # === Constants ================================================================
@@ -57,9 +57,16 @@ _HERE = pathlib.Path(__file__).resolve().parent      # .../skills/lead-agent/lib
 _SKILL = _HERE.parent                                # .../skills/lead-agent
 _LOG_PATH = pathlib.Path.home() / ".claude" / "hooks" / "lead-pretool-hook.log"
 
-# 11-file pin set per s12.8 (v1.1.0: + secret-scan.ps1 + jsonl-watcher.ps1).
-# launch.ps1 lives in skill_dir; the rest in lib/. Order is for diff-readability
-# only -- the verifier matches entries by name, not by index.
+# 12-file pin set per s12.8.
+# v1.1.0 walkback additions: secret-scan.ps1 + jsonl-watcher.ps1 + runner.ps1.
+# runner.ps1 was added after Codex Wave 3c REJECT (and parallel Code Reviewer
+# companion) flagged that v1.1.0's CHANGELOG/README claimed runner.ps1 was
+# pinned while the actual tuple still pinned only launch.ps1. Pinning runner.ps1
+# closes the swap-attack surface where an attacker could replace runner.ps1
+# under a running BUILDER/OVERWATCH session (runner.ps1 holds the launch lock,
+# spawns the lieutenant Claude Code subprocess, and runs in the trust boundary).
+# launch.ps1 + runner.ps1 live in skill_dir; the rest in lib/. Order is for
+# diff-readability only -- the verifier matches entries by name, not by index.
 _PIN_FILES = (
     "allowlist.json",
     "path-guard.json",
@@ -72,6 +79,7 @@ _PIN_FILES = (
     "secret-scan.ps1",
     "jsonl-watcher.ps1",
     "launch.ps1",
+    "runner.ps1",
 )
 
 # Required env contract per s12.1. LEAD_HOOK_SCHEMA bumped to 3 in CM3 v0.5.
@@ -203,7 +211,7 @@ def _verify_trust_anchor():
               actual=actual, expected=expected.lower())
 
 
-# === 9-file pin chain (s12.8) =================================================
+# === 12-file pin chain (s12.8) ================================================
 
 def _verify_pin_chain(extension_sha_path):
     """Returns dict[name -> bytes] for the verified pinned configs.
@@ -257,7 +265,7 @@ def _verify_pin_chain(extension_sha_path):
     for name in _PIN_FILES:
         if name not in pinned:
             _deny(_GENERIC_INTEGRITY, "pin entry missing", name=name)
-        target = (_SKILL if name == "launch.ps1" else _HERE) / name
+        target = (_SKILL if name in ("launch.ps1", "runner.ps1") else _HERE) / name
         try:
             data = _atomic_read(target)
         except Exception as e:

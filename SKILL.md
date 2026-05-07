@@ -82,7 +82,7 @@ Closes F-03 + F-04; see DESIGN.md section 15.10.
 | `lib/mcp-allow.json` | Positive MCP allowlist; deny-by-default | Active |
 | `lib/allowlist.json` | argv-shape rules for BUILDER + TOOLSMITH (V8-1 valid JSON; uses `${LEAD_TOOLS_DIR}` env-var expansion) | Active |
 | `lib/notify-sh.sha256` | Pin for `~/.claude/tools/notify.sh` (rotated by `install-hook.ps1 -RepinNotify`) | Active |
-| `lib/lead-extension.sha256` | 9-file pin manifest with self-hash chain | Active |
+| `lib/lead-extension.sha256` | 12-file pin manifest with self-hash chain | Active |
 | `lib/canonicalize-path.py` | 8.3 / casing / slash / symlink normalizer | Active |
 | `lib/allowlist_parser.py` | argv-shape parser with env-var expansion | Active |
 | `lib/sanitize-jsonl.py` | JSONL sanitizer (used by OVERWATCH watcher; library is ready, watcher is stub) | Active |
