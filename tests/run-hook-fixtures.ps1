@@ -67,7 +67,7 @@ function Ensure-NotifyShPin {
     # throw "missing pin file".
     #
     # Solution: stub the file with deterministic test content so Stamp can
-    # enumerate all 9 pins. The stub diverges from any production install's
+    # enumerate all 12 pins. The stub diverges from any production install's
     # value (intentionally so -- author's hash is per-user-private), but
     # internally consistent: manifest re-stamp references the stub's SHA.
     # Fixtures test hook DISPATCH correctness; the per-user manifest
