@@ -29,9 +29,15 @@ See `git log v1.0.0..v1.1.0 --oneline` for the per-commit walkback story.
   + jsonl-watcher to the tuple but missed runner.ps1, which holds the
   launch lock and runs F-02's three-layer lock-release handlers in the
   trust boundary).
-- Trust anchor `_ANCHOR_SHA` constant in `lead-pretool-hook.py` re-stamped
-  for the expanded pin set:
-  `9f4d25e5caea227f37401956ec4e9ce67737500fff5b9ea75ef788498e24fce4`.
+- Trust anchor `_ANCHOR_SHA` constant in `lead-pretool-hook.py:45`
+  re-stamped twice during the v1.1.0 walkback (Wave 3b expanded the
+  pin set from 9 to 11 files; Wave 3c added `runner.ps1`; Wave 3d
+  added the fresh-clone `notify.sh` placeholder stub which mutated
+  `install-hook.ps1` once more). Final value:
+  `a8329a1b08d024b6fde74fd095873d9bd7f941fe3fdde54d5973c109cc2d8c2e`.
+  This is the SHA256 of `lib/install-hook.ps1` as shipped at v1.1.0
+  tag and is the trust-cascade root that the runtime gate verifies
+  on every PreToolUse fire (DESIGN.md s12.6 step 1).
 - Production-grade `lib/secret-scan.ps1`: 15-pattern HMAC-signed scan-pass
   manifest replaces the v1.0.0 fail-closed stub. Library is ready; the
   BUILDER pre-push hook that calls it remains stubbed in v1.1.0 (see
