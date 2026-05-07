@@ -9,9 +9,9 @@ param(
 # Full contract: DESIGN.md s4.1 (OVERWATCH mode) + s5 (brake list).
 #
 # Tails a sibling JSONL transcript as untrusted input. Sanitizes every
-# string field (secret-redact + imperative-strip + truncate) before
-# emitting a structured summary so the OVERWATCH lead can reason about
-# the lieutenant's progress without ingesting injection payloads.
+# string field (secret-redact + role-prefix-neutralize + truncate)
+# before emitting a structured summary so the OVERWATCH lead can reason
+# about the lieutenant's progress without ingesting injection payloads.
 #
 # Hardening:
 #   - Path allowlist: target MUST be inside LEAD_WATCH_ROOT or the
@@ -21,10 +21,14 @@ param(
 #     id (W-09 lead-self-target exclusion).
 #   - 15-pattern secret pin-set MIRROR of lib/secret-scan.ps1 -- the
 #     two scanners must redact the same alphabet (rotate together).
-#   - Imperative-strip: narrow regex anchored at start-of-line targeting
-#     role-impersonation only (system:/assistant:/lead-agent:/"ignore
-#     previous" etc). Generic imperative verbs like "create" are NOT
-#     stripped because legitimate transcript content contains them.
+#   - Role-prefix neutralizer: narrow regex anchored at start-of-line
+#     targeting role-impersonation prefixes only (system:/assistant:/
+#     lead-agent:/"ignore previous" etc). NOT a generic imperative
+#     stripper -- legit transcript content contains "create", "delete",
+#     etc. and must pass through. Mid-string occurrences of role tokens
+#     are NOT neutralized (the line anchor only fires once per line and
+#     ConvertTo-Json -Compress flattens to a single line); this is
+#     defense-in-depth, not a trust boundary (W3-9, W3-NEW3).
 #   - Brake list: if >5% of parsed lines fail JSON parse, the watcher
 #     fail-closes (DESIGN.md s5). Garbage stream defaults to refuse.
 #   - HMAC envelope: same sign-then-store pattern as secret-scan.
@@ -162,10 +166,21 @@ $compiledSecrets = foreach ($p in $secretPatterns) {
     [System.Text.RegularExpressions.Regex]::new($p.Pattern, $RegexOpts)
 }
 
-# Imperative-strip targets role-impersonation prompt-injection only.
-# Anchored at start-of-line, IgnoreCase, multiline. NOT a generic
-# verb-stripper -- that would gut legit transcript content.
-$imperativeRe = [System.Text.RegularExpressions.Regex]::new(
+# Role-prefix neutralizer: targets role-impersonation prompt-injection
+# only (system:/assistant:/lead-agent:/"ignore previous" etc). Anchored
+# at start-of-line with the Multiline flag, IgnoreCase. NOT a generic
+# imperative verb-stripper -- that would gut legit transcript content
+# like "create the file" or "delete the row".
+#
+# Known-limitation (W3-NEW3): mid-string occurrences of role tokens
+# are NOT neutralized. The Multiline anchor only fires after a real
+# newline, and `ConvertTo-Json -Compress` flattens nested payloads to
+# a single line. Treat this as defense-in-depth against the common
+# case (one role-prefix per JSONL line), not a trust boundary against
+# adversarial injection. The inner ChildClaude subagent is sandboxed
+# by the PreToolUse hook -- the watcher's job is to keep prompt-noise
+# out of the OVERWATCH lead's transcript, not to be a complete IDS.
+$rolePrefixRe = [System.Text.RegularExpressions.Regex]::new(
     '^\s*(?:lead[-\s]?agent[,:]|claude(?:\s+code)?\s*[,:]|system\s*:|assistant\s*:|<\s*system\s*>|you\s+are\s+now\s+|ignore\s+(?:all\s+)?(?:previous|prior)\s+instructions)',
     ([System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor `
      [System.Text.RegularExpressions.RegexOptions]::Multiline -bor `
@@ -182,8 +197,10 @@ function Sanitize-Field {
         $redacted = $re.Replace($redacted, '[REDACTED-SECRET]')
     }
 
-    # 2. Imperative strip (replaces role-prefix with marker).
-    $stripped = $imperativeRe.Replace($redacted, '[STRIPPED-IMPERATIVE]')
+    # 2. Role-prefix neutralize (replaces leading role-impersonation
+    #    prefix with a marker; does NOT scan mid-string -- see header
+    #    docblock for the W3-NEW3 known-limitation rationale).
+    $stripped = $rolePrefixRe.Replace($redacted, '[NEUTRALIZED-ROLE-PREFIX]')
 
     # 3. Truncate to MaxFieldChars.
     if ($stripped.Length -gt $MaxFieldChars) {

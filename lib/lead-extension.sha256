@@ -10,6 +10,6 @@ allowlist_parser.py      d0b4beff64cddc568b2d0905b424b6e41b3c3a42936942d487cc9fd
 lead-pretool-hook.py     1cedbf51debf7ba99da457a1e03c6b8ff018fd5f40af9bb836c1f4ea19ab6344
 sanitize-jsonl.py        b6a727c7fcbe1db6bcb92bb77ed3ad8c46203a90fadbc1748ce27a78e44c015e
 secret-scan.ps1          a26cd488814f2fad5cd62ab098e3b18c2fea0e34fe3f5975b10cfbc53e756e3e
-jsonl-watcher.ps1        285dd295d3c51654b99f72e2d3bb916216be7a6507c7cd96eec577608102b060
+jsonl-watcher.ps1        2c32a49f417fd222ab7daff8688bdf5be7fe39a403e1aca7bdd3c2f78bf2948b
 launch.ps1               5e7d9d819e1c71b295a8f9a4dbe61cc335b4542b05aa066b33825a63ae17a7b2
-sha256:ea2798a0136152d247b799ad29d15891e556a73adbb69e4ae25a70fc9a5989a5
+sha256:797d43a89db6ca6f8727cce46948be8d9f6c2a75101370feb63aeea61359d863
