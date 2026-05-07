@@ -77,7 +77,11 @@ $NotifyShaPath  = Join-Path $LibRoot 'notify-sh.sha256'
 $LeadHookPath   = Join-Path $LibRoot 'lead-pretool-hook.py'
 $InstallerPath  = $PSCommandPath
 
-# 9-file pin set (s12.8); order is significant for readability only.
+# 11-file pin set (s12.8); order is significant for readability only.
+# v1.1.0 additions: secret-scan.ps1 + jsonl-watcher.ps1 (W3-NEW2). Adding the
+# helpers to the pin chain closes the orphan-attack surface where an attacker
+# could swap them under a running BUILDER/OVERWATCH session (the runtime
+# wiring lands in v1.1.1, but the bytes are now anchored regardless).
 $PinFiles = @(
     [pscustomobject]@{ Name='allowlist.json';        Path = (Join-Path $LibRoot   'allowlist.json') }
     [pscustomobject]@{ Name='path-guard.json';       Path = (Join-Path $LibRoot   'path-guard.json') }
@@ -87,6 +91,8 @@ $PinFiles = @(
     [pscustomobject]@{ Name='allowlist_parser.py';   Path = (Join-Path $LibRoot   'allowlist_parser.py') }
     [pscustomobject]@{ Name='lead-pretool-hook.py';  Path = (Join-Path $LibRoot   'lead-pretool-hook.py') }
     [pscustomobject]@{ Name='sanitize-jsonl.py';     Path = (Join-Path $LibRoot   'sanitize-jsonl.py') }
+    [pscustomobject]@{ Name='secret-scan.ps1';       Path = (Join-Path $LibRoot   'secret-scan.ps1') }
+    [pscustomobject]@{ Name='jsonl-watcher.ps1';     Path = (Join-Path $LibRoot   'jsonl-watcher.ps1') }
     [pscustomobject]@{ Name='launch.ps1';            Path = (Join-Path $SkillRoot 'launch.ps1') }
 )
 

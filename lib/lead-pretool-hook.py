@@ -42,7 +42,7 @@ import traceback
 # entry until you paste the SHA below. After running install-hook.ps1 once,
 # replace the empty string with the printed SHA. From then on the hook is
 # fully bootstrapped and any tampering of install-hook.ps1 fails closed.
-_ANCHOR_SHA = "b8b43deedc6c0e43e2aca1754dec59ec6b2d521f6f9b6d81e8e626666a2f9e33"
+_ANCHOR_SHA = "60ac9d6c8c3eb49e9c95416bbbecbd3664fafcdb333401ab4caace888a714b48"
 
 
 # === Constants ================================================================
@@ -57,7 +57,9 @@ _HERE = pathlib.Path(__file__).resolve().parent      # .../skills/lead-agent/lib
 _SKILL = _HERE.parent                                # .../skills/lead-agent
 _LOG_PATH = pathlib.Path.home() / ".claude" / "hooks" / "lead-pretool-hook.log"
 
-# 9-file pin set per s12.8. launch.ps1 lives in skill_dir; rest in lib/.
+# 11-file pin set per s12.8 (v1.1.0: + secret-scan.ps1 + jsonl-watcher.ps1).
+# launch.ps1 lives in skill_dir; the rest in lib/. Order is for diff-readability
+# only -- the verifier matches entries by name, not by index.
 _PIN_FILES = (
     "allowlist.json",
     "path-guard.json",
@@ -67,6 +69,8 @@ _PIN_FILES = (
     "allowlist_parser.py",
     "lead-pretool-hook.py",
     "sanitize-jsonl.py",
+    "secret-scan.ps1",
+    "jsonl-watcher.ps1",
     "launch.ps1",
 )
 
