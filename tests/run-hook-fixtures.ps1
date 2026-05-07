@@ -53,6 +53,29 @@ function Get-FileSha256Hex {
     return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
 }
 
+function Ensure-NotifyShPin {
+    # lib/notify-sh.sha256 is gitignored by design (.gitignore:10) -- it is
+    # per-user-stamped at install time by install.ps1 -RepinNotify against
+    # each cloner's local ~/.claude/tools/notify.sh. In CI / fresh clones
+    # the file legitimately doesn't exist, which would make Stamp-PinManifest
+    # throw "missing pin file".
+    #
+    # Solution: stub the file with deterministic test content so Stamp can
+    # enumerate all 9 pins. The stub diverges from any production install's
+    # value (intentionally so -- author's hash is per-user-private), but
+    # internally consistent: manifest re-stamp references the stub's SHA.
+    # Fixtures test hook DISPATCH correctness; the per-user manifest
+    # divergence at this entry is orthogonal to dispatch logic.
+    $path = Join-Path $LibDir 'notify-sh.sha256'
+    if (Test-Path -LiteralPath $path) { return }
+    # Mirror install.ps1 -RepinNotify byte format: 64-hex sha + 2 spaces +
+    # "notify.sh" + LF (76 bytes total). Use all-zero hex as the stub
+    # sentinel -- deterministic and obvious-not-real on inspection.
+    $stubSha = '0' * 64
+    $stub = "$stubSha  notify.sh`n"
+    [System.IO.File]::WriteAllText($path, $stub, (New-Object System.Text.UTF8Encoding($false)))
+}
+
 function Stamp-PinManifest {
     # MIRRORS lib/install-hook.ps1 Write-PinManifest exactly so re-stamping
     # against unchanged pin files is byte-identical to the committed manifest.
@@ -186,6 +209,9 @@ function Invoke-HookFixture {
 # =============================================================================
 # Main
 # =============================================================================
+
+Write-Host "[run-hook-fixtures] ensuring per-user notify-sh pin stub..." -ForegroundColor Cyan
+Ensure-NotifyShPin
 
 Write-Host "[run-hook-fixtures] stamping pin manifest..." -ForegroundColor Cyan
 $extShaPath = Stamp-PinManifest
