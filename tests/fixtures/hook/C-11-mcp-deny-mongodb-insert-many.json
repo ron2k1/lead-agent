@@ -4,10 +4,15 @@
   "env": {},
   "event": {
     "tool_name": "mcp__plugin_mongodb_mongodb__insert-many",
-    "tool_input": { "database": "x", "collection": "y", "documents": [] }
+    "tool_input": {
+      "database": "x",
+      "collection": "y",
+      "documents": []
+    }
   },
   "expected": {
     "exitCode": 2,
-    "stdoutContains": "block"
+    "stdoutContains": "not in mcp-allow.json",
+    "stdoutNotContains": "integrity"
   }
 }

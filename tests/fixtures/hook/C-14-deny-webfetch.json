@@ -4,10 +4,16 @@
   "env": {},
   "event": {
     "tool_name": "WebFetch",
-    "tool_input": { "url": "https://example.com" }
+    "tool_input": {
+      "url": "https://example.com"
+    }
   },
   "expected": {
     "exitCode": 2,
-    "stdoutContains": "block"
+    "stdoutContains": "not in allowlist",
+    "stdoutNotContains": [
+      "integrity",
+      "mcp-allow"
+    ]
   }
 }

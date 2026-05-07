@@ -4,10 +4,14 @@
   "env": {},
   "event": {
     "tool_name": "mcp__plugin_cloudflare_cloudflare-bindings__d1_database_query",
-    "tool_input": { "database": "x", "sql": "SELECT 1" }
+    "tool_input": {
+      "database": "x",
+      "sql": "SELECT 1"
+    }
   },
   "expected": {
     "exitCode": 2,
-    "stdoutContains": "block"
+    "stdoutContains": "not in mcp-allow.json",
+    "stdoutNotContains": "integrity"
   }
 }

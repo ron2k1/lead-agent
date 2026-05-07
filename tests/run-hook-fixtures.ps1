@@ -257,18 +257,40 @@ foreach ($file in $fixtureFiles) {
 
     $expectedExit = [int]$fixture.expected.exitCode
     $expectedSubstr = $fixture.expected.stdoutContains
+    $forbiddenRaw = if ($fixture.expected.PSObject.Properties.Name -contains 'stdoutNotContains') {
+        $fixture.expected.stdoutNotContains
+    } else { $null }
+    # Normalize forbiddenSubstr to an array — fixtures may supply either a single
+    # string ("integrity") or a list (["integrity", "mcp-allow"]) so the deny
+    # discriminator can pin down which generic string the hook emitted (W3-3).
+    $forbiddenList = @()
+    if ($forbiddenRaw) {
+        if ($forbiddenRaw -is [string]) { $forbiddenList = @($forbiddenRaw) }
+        else { $forbiddenList = @($forbiddenRaw) }
+    }
     $okExit  = ($r.ExitCode -eq $expectedExit)
     $okStdout = ($r.Stdout -like "*$expectedSubstr*")
+    $violatedForbidden = @()
+    foreach ($needle in $forbiddenList) {
+        if ($r.Stdout -like "*$needle*") { $violatedForbidden += $needle }
+    }
+    $okNotContains = ($violatedForbidden.Count -eq 0)
 
-    if ($okExit -and $okStdout) {
+    if ($okExit -and $okStdout -and $okNotContains) {
         $pass++
+        $detail = "exit=$($r.ExitCode) stdout~=$expectedSubstr"
+        if ($forbiddenList.Count -gt 0) {
+            $detail += " stdout!~={$($forbiddenList -join ',')}"
+        }
         $results += [pscustomobject]@{
-            Id = $fixture.id; Status = 'PASS';
-            Detail = "exit=$($r.ExitCode) stdout~=$expectedSubstr"
+            Id = $fixture.id; Status = 'PASS'; Detail = $detail
         }
     } else {
         $fail++
         $detail = "exit got=$($r.ExitCode) want=$expectedExit; stdout=$($r.Stdout)"
+        if ($violatedForbidden.Count -gt 0) {
+            $detail += "; forbidden substring(s) [$($violatedForbidden -join ',')] present in stdout"
+        }
         if ($r.Stderr) { $detail += "; stderr=$($r.Stderr.Trim())" }
         $results += [pscustomobject]@{
             Id = $fixture.id; Status = 'FAIL'; Detail = $detail

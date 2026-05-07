@@ -4,10 +4,13 @@
   "env": {},
   "event": {
     "tool_name": "mcp__plugin_stripe_stripe__create_customer",
-    "tool_input": { "email": "test@example.com" }
+    "tool_input": {
+      "email": "test@example.com"
+    }
   },
   "expected": {
     "exitCode": 2,
-    "stdoutContains": "block"
+    "stdoutContains": "not in mcp-allow.json",
+    "stdoutNotContains": "integrity"
   }
 }
