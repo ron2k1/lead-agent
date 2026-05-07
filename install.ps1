@@ -207,6 +207,26 @@ function Test-Verify {
     }
     Write-Ok 'launch.ps1 -Dry preflight clean.'
 
+    # 6. Drift detector (F-05): warn when shipped features advertised in
+    # docs are still v1.x stubs in code. Non-fatal -- the gate is ACTIVE;
+    # we just want adopters to learn about gaps at install time, not when
+    # they hit them. The regex disappears once v1.1 implements -Force,
+    # so the warning auto-silences.
+    $launchText = [System.IO.File]::ReadAllText($launchPath)
+    $driftWarnings = @()
+    if ($launchText -match '(?s)catch \[System\.IO\.IOException\].*?-Force.*?not yet implemented') {
+        $driftWarnings += '-Force flag for orphan lockfiles is a v1.x stub (launch.ps1 still refuses).'
+        $driftWarnings += '   Manual recovery: Remove-Item -LiteralPath "$env:LOCALAPPDATA\Temp\lead-agent.lock" -Force'
+        $driftWarnings += '   See README.md ## Recovery; auto-recovery lands in v1.1 (DESIGN.md s15.10 F-01).'
+    }
+    if ($driftWarnings.Count -gt 0) {
+        Write-Host ''
+        Write-Warn2 'documentation drift detected (non-fatal):'
+        foreach ($w in $driftWarnings) { Write-Host "      $w" -ForegroundColor DarkYellow }
+    } else {
+        Write-Ok 'no documentation drift detected.'
+    }
+
     Write-Host ''
     Write-Host 'lead-agent gate ACTIVE' -ForegroundColor Green
     Write-Host ''
