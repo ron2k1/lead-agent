@@ -887,18 +887,21 @@ SECRET SCAN (mandatory pre-push gate, fail-closed; B2 v0.4, CB3 v0.6, SE-N13 v0.
       *.env*, *.pem, *.key, id_rsa*, *.crt, *.cer, *.p12, *.pfx,
       *.kdbx, .git-credentials, .pgpass, .npmrc with _authToken,
       .netrc with password
-  - content regex deny:
+  - content regex deny (canonical 15-pattern set v1.1.0; W3-1 widened
+    four patterns vs v1.0 to close codex-flagged gaps. Single source of
+    truth lives in lib/secret-scan.ps1:142-158; lib/allowlist_parser.py
+    `_SECRET_PATTERNS` and lib/jsonl-watcher.ps1 mirror it byte-for-byte):
       AKIA[0-9A-Z]{16}                             # AWS access key
-      sk-[A-Za-z0-9]{20,}                          # OpenAI / generic
+      sk-(?:proj-)?[A-Za-z0-9_-]{20,}              # OpenAI key (W3-1: was sk-[A-Za-z0-9]{20,}; widened to (?:proj-)? for project-scoped + _- in alphabet)
       ghp_[A-Za-z0-9]{36}                          # GitHub PAT
       gho_[A-Za-z0-9]{36}                          # GitHub OAuth
       glpat-[A-Za-z0-9_-]{20}                      # GitLab PAT
       xoxb-[A-Za-z0-9-]{40,}                       # Slack bot
       xoxp-[A-Za-z0-9-]{40,}                       # Slack user
       eyJ[A-Za-z0-9_-]{30,}\.[A-Za-z0-9_-]{30,}\.[A-Za-z0-9_-]{30,} # JWT
-      postgres://[^:]+:[^@]+@                      # PostgreSQL connection strings
-      rk_live_[a-z0-9]+                            # Stripe restricted keys
-      Bearer\s+[A-Za-z0-9_=-]{20,}                 # Generic bearer tokens
+      postgres(?:ql)?://[^:]+:[^@]+@               # Postgres URL (W3-1: was postgres://; widened to cover postgresql:// scheme)
+      rk_(?:live|test)_[A-Za-z0-9]+                # Stripe restricted-key (W3-1: was rk_live_[a-z0-9]+; widened to test-mode + uppercase)
+      [Bb]earer\s+[A-Za-z0-9_=-]{20,}              # Bearer token (W3-1: was Bearer\s+; character-class form is byte-portable across .NET + Python re without engine-specific case-insensitive options)
       mongodb(?:\+srv)?://[^:]+:[^@]{4,}@           # MongoDB connection strings, min 4-char password to suppress empty-pass false-suppression (EC-1 v0.6, secret-scan-v6, AWS-REGEX v0.7)
       mysql://[^:]+:[^@]{4,}@                       # MySQL connection strings, min 4-char password (secret-scan-v6, AWS-REGEX v0.7)
       redis(?:s)?://[^:]+:[^@]{4,}@                 # Redis/TLS connection strings, min 4-char password (secret-scan-v6, AWS-REGEX v0.7)
