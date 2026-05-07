@@ -253,7 +253,19 @@ function Write-NotifyShaIfPresent {
         Write-LfFile -Path $NotifyShaPath -Text "$sha  notify.sh`n"
         Write-Host "  Pinned notify.sh -> $NotifyShaPath" -ForegroundColor Green
     } else {
-        Write-Warning "  notify.sh missing at $NotifySrc; leaving lib/notify-sh.sha256 placeholder."
+        # Fresh clone: notify.sh missing means the user has not yet installed
+        # the trusted notify shim. Without writing a placeholder here, the
+        # subsequent Write-PinManifest call iterates $PinFiles, hits index 3
+        # (notify-sh.sha256), and Get-Sha256Hex throws "missing file" at the
+        # Test-Path guard above -- aborting install on every fresh clone.
+        # Mirror tests/run-hook-fixtures.ps1:75-82 stub format byte-for-byte
+        # (64-zero hex + 2 spaces + "notify.sh" + LF; UTF8 no-BOM via
+        # Write-LfFile; 76 bytes total) so the manifest can enumerate all 12
+        # pins deterministically. Re-stamps cleanly via Invoke-RepinNotify
+        # once the user creates notify.sh.
+        $stubSha = '0' * 64
+        Write-LfFile -Path $NotifyShaPath -Text "$stubSha  notify.sh`n"
+        Write-Warning "  notify.sh missing at $NotifySrc; wrote placeholder $NotifyShaPath."
         Write-Warning "  After creating notify.sh, run: install-hook.ps1 -RepinNotify"
     }
 }

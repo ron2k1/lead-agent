@@ -42,7 +42,7 @@ import traceback
 # entry until you paste the SHA below. After running install-hook.ps1 once,
 # replace the empty string with the printed SHA. From then on the hook is
 # fully bootstrapped and any tampering of install-hook.ps1 fails closed.
-_ANCHOR_SHA = "9f4d25e5caea227f37401956ec4e9ce67737500fff5b9ea75ef788498e24fce4"
+_ANCHOR_SHA = "a8329a1b08d024b6fde74fd095873d9bd7f941fe3fdde54d5973c109cc2d8c2e"
 
 
 # === Constants ================================================================
