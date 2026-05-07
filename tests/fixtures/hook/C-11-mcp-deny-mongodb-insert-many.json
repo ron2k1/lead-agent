@@ -1,0 +1,13 @@
+{
+  "id": "C-11",
+  "description": "MongoDB insert-many denied; write-to-DB through MCP is one of the highest-blast-radius surfaces and must default-deny.",
+  "env": {},
+  "event": {
+    "tool_name": "mcp__plugin_mongodb_mongodb__insert-many",
+    "tool_input": { "database": "x", "collection": "y", "documents": [] }
+  },
+  "expected": {
+    "exitCode": 2,
+    "stdoutContains": "block"
+  }
+}

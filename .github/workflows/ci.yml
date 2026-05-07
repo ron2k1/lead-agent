@@ -100,3 +100,24 @@ jobs:
             $bad | ForEach-Object { Write-Error $_ }
             throw "non-ASCII bytes in shipped files"
           }
+
+  hook-fixtures:
+    name: Hook fixture matrix (C-01..C-15)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python deps
+        shell: pwsh
+        run: python -m pip install --no-cache-dir wcmatch
+
+      - name: Run hook fixture matrix
+        shell: pwsh
+        run: |
+          ./tests/run-hook-fixtures.ps1
+          if ($LASTEXITCODE -ne 0) { throw "hook fixture matrix failed" }

@@ -1,0 +1,15 @@
+{
+  "id": "C-01",
+  "description": "LEAD_AGENT unset -> hook passthrough; any tool call returns allow without integrity checks.",
+  "env": {
+    "LEAD_AGENT": ""
+  },
+  "event": {
+    "tool_name": "Bash",
+    "tool_input": { "command": "echo hello" }
+  },
+  "expected": {
+    "exitCode": 0,
+    "stdoutContains": "allow"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "C-13",
+  "description": "Empty tool_name falls through every dispatch branch into the default-deny tail. Proves the catch-all in main() is wired.",
+  "env": {},
+  "event": {
+    "tool_name": "",
+    "tool_input": {}
+  },
+  "expected": {
+    "exitCode": 2,
+    "stdoutContains": "block"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "C-05",
+  "description": "Read-only Supabase MCP tool (list_tables) returns allow; proves the allow-list crosses the read/write boundary correctly within one plugin namespace.",
+  "env": {},
+  "event": {
+    "tool_name": "mcp__plugin_supabase_supabase__list_tables",
+    "tool_input": {}
+  },
+  "expected": {
+    "exitCode": 0,
+    "stdoutContains": "allow"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "C-12",
+  "description": "Future-plugin write tool simulator (CM3 v0.5). Proves that a plugin shipping a NEW write tool tomorrow cannot slip through the gate; only positively-listed names allow.",
+  "env": {},
+  "event": {
+    "tool_name": "mcp__plugin_future_unknownplugin__write_secret_thing",
+    "tool_input": { "name": "x" }
+  },
+  "expected": {
+    "exitCode": 2,
+    "stdoutContains": "block"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "C-02",
+  "description": "MCP read tool on the positive allow-list (vault_search) returns allow.",
+  "env": {},
+  "event": {
+    "tool_name": "mcp__vault-vectors__vault_search",
+    "tool_input": { "query": "DDIA scaling" }
+  },
+  "expected": {
+    "exitCode": 0,
+    "stdoutContains": "allow"
+  }
+}

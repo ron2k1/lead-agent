@@ -1,0 +1,13 @@
+{
+  "id": "C-08",
+  "description": "GitHub create_or_update_file denied (B6 v0.4, CM3 v0.5); proves that file-write through an MCP route is gated by the same allow-list as merge_pr.",
+  "env": {},
+  "event": {
+    "tool_name": "mcp__github-official__create_or_update_file",
+    "tool_input": { "owner": "ron2k1", "repo": "lead-agent", "path": "README.md", "content": "x" }
+  },
+  "expected": {
+    "exitCode": 2,
+    "stdoutContains": "block"
+  }
+}

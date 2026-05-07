@@ -1,0 +1,13 @@
+{
+  "id": "C-10",
+  "description": "Stripe create_customer denied; payments-side write surfaces must default-deny even though the plugin is loaded.",
+  "env": {},
+  "event": {
+    "tool_name": "mcp__plugin_stripe_stripe__create_customer",
+    "tool_input": { "email": "test@example.com" }
+  },
+  "expected": {
+    "exitCode": 2,
+    "stdoutContains": "block"
+  }
+}

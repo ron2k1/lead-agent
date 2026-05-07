@@ -1,0 +1,13 @@
+{
+  "id": "C-06",
+  "description": "Write-side of the same plugin (supabase apply_migration) is NOT on the positive allow-list and must be denied (CM3 default-deny invariant).",
+  "env": {},
+  "event": {
+    "tool_name": "mcp__plugin_supabase_supabase__apply_migration",
+    "tool_input": { "name": "add_column", "query": "ALTER TABLE foo ADD bar text" }
+  },
+  "expected": {
+    "exitCode": 2,
+    "stdoutContains": "block"
+  }
+}

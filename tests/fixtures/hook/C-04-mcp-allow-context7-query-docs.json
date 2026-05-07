@@ -1,0 +1,13 @@
+{
+  "id": "C-04",
+  "description": "Plugin-namespaced MCP read tool (context7 query-docs) returns allow.",
+  "env": {},
+  "event": {
+    "tool_name": "mcp__plugin_context7_context7__query-docs",
+    "tool_input": { "library": "react" }
+  },
+  "expected": {
+    "exitCode": 0,
+    "stdoutContains": "allow"
+  }
+}

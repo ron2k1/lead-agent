@@ -1,0 +1,13 @@
+{
+  "id": "C-14",
+  "description": "WebFetch is unhandled and must default-deny. The lead never makes outbound HTTP requests on its own; data collection happens via curated MCP tools.",
+  "env": {},
+  "event": {
+    "tool_name": "WebFetch",
+    "tool_input": { "url": "https://example.com" }
+  },
+  "expected": {
+    "exitCode": 2,
+    "stdoutContains": "block"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "C-15",
+  "description": "Supabase execute_sql denied. Mirrors C-09 (cloudflare d1_query): arbitrary-SQL surfaces never bypass the gate even when sibling read tools are allowed.",
+  "env": {},
+  "event": {
+    "tool_name": "mcp__plugin_supabase_supabase__execute_sql",
+    "tool_input": { "query": "DROP TABLE users" }
+  },
+  "expected": {
+    "exitCode": 2,
+    "stdoutContains": "block"
+  }
+}

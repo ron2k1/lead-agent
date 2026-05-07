@@ -1,0 +1,13 @@
+{
+  "id": "C-03",
+  "description": "MCP git-server read tool (git_status) returns allow; proves multiple sub-server allows are wired.",
+  "env": {},
+  "event": {
+    "tool_name": "mcp__git-server__git_status",
+    "tool_input": {}
+  },
+  "expected": {
+    "exitCode": 0,
+    "stdoutContains": "allow"
+  }
+}

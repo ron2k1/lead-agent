@@ -1,0 +1,13 @@
+{
+  "id": "C-07",
+  "description": "GitHub merge_pull_request denied (B6 v0.4, CM3 v0.5); destructive write tools are the canonical deny target.",
+  "env": {},
+  "event": {
+    "tool_name": "mcp__github-official__merge_pull_request",
+    "tool_input": { "owner": "ron2k1", "repo": "lead-agent", "pull_number": 1 }
+  },
+  "expected": {
+    "exitCode": 2,
+    "stdoutContains": "block"
+  }
+}
