@@ -97,7 +97,7 @@ See `git log v1.0.0..v1.1.0 --oneline` for the per-commit walkback story.
 
 ### Security
 
-- The `lib/lead-extension.sha256` self-hash terminator now covers 11
+- The `lib/lead-extension.sha256` self-hash terminator now covers 12
   files instead of 9, increasing the integrity gate's coverage of the
   runtime path.
 - The expanded pin set means a tampered `secret-scan.ps1` or
