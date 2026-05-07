@@ -11,5 +11,5 @@ lead-pretool-hook.py     1cedbf51debf7ba99da457a1e03c6b8ff018fd5f40af9bb836c1f4e
 sanitize-jsonl.py        b6a727c7fcbe1db6bcb92bb77ed3ad8c46203a90fadbc1748ce27a78e44c015e
 secret-scan.ps1          a26cd488814f2fad5cd62ab098e3b18c2fea0e34fe3f5975b10cfbc53e756e3e
 jsonl-watcher.ps1        2c32a49f417fd222ab7daff8688bdf5be7fe39a403e1aca7bdd3c2f78bf2948b
-launch.ps1               5e7d9d819e1c71b295a8f9a4dbe61cc335b4542b05aa066b33825a63ae17a7b2
-sha256:797d43a89db6ca6f8727cce46948be8d9f6c2a75101370feb63aeea61359d863
+launch.ps1               e0174dbe72532998559416913fddb2de534c8f72495c3195491d6f69d444b1ba
+sha256:45b4c527bd75bb4134bdb9153b706284c1b5078f5a9136375403f712857ef1ae
