@@ -82,9 +82,19 @@ The following are OUT of scope:
   user-presence) addresses this; v1 does not. See the README's
   "What this is NOT" block.
 - Issues in upstream Claude Code itself. Report those to Anthropic.
-- Issues in the host `windows_shell_safety.py` hook. lead-agent is an
-  *extension* of that file, not a replacement; bugs in the host hook
-  are out of scope here.
+- Issues in the host `windows_shell_safety.py` hook. The host hook is
+  USER-PROVIDED, not vendor-supplied -- Anthropic does not ship a
+  default `windows_shell_safety.py`. Three legitimate provenance
+  paths: (a) your own custom PreToolUse hook, (b) the bundled no-op
+  stub at `lib/windows_shell_safety_stub.py` dropped via
+  `install.ps1 -Bootstrap`, or (c) any equivalent hook pointed at via
+  `-HookFileOverride`. lead-agent is an *extension* of whichever file
+  is present, not a replacement. Bugs in YOUR host hook are your
+  problem; bugs in the bundled stub (which intentionally allow-alls)
+  are out of scope unless they break the chain anchor and prevent
+  lead-agent from extending. The lead-agent gate runs ON TOP of the
+  host hook when `LEAD_AGENT=1`; the stub does not provide additional
+  security on its own.
 - Resource exhaustion / DoS by an adversarial system prompt. The
   lieutenant is trusted to not loop forever; if it does, you can
   close the tab. Token-burn is not a vulnerability.
