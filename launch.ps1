@@ -198,6 +198,18 @@ if ($Dry) {
     Write-Host "  Worktree:  $worktreeRoot" -ForegroundColor Cyan
     Write-Host "  wt args:   $($wtArgs -join ' ')" -ForegroundColor Cyan
     Write-Host "lead-agent dry run OK" -ForegroundColor Green
+    # -Dry never spawns the WT tab, so there is no live runner to consume
+    # the lock or the manifest. Holding either past return leaks them:
+    #   - lockfile blocks subsequent real spawns (the runner is the only
+    #     code path that releases it; -Dry has no runner). install.ps1
+    #     -Verify probe 5 invokes -Dry, so leaving the lock in place
+    #     poisons the lead-agent state every verify run.
+    #   - manifest temp file uses a fresh GUID per launch, so stale
+    #     -Dry runs accumulate as dozens of orphan JSON blobs in TEMP.
+    # Both deletes are best-effort: if the file is already gone (race or
+    # parent-cleaned) -ErrorAction SilentlyContinue swallows the error.
+    Remove-Item -LiteralPath $LockPath     -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $manifestPath -Force -ErrorAction SilentlyContinue
     return
 }
 
