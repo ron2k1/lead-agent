@@ -237,6 +237,71 @@ the rules.
 
 ---
 
+## FAQ
+
+**Why a separate "lieutenant" instead of just running two `claude` tabs?**
+
+Two unrelated `claude` tabs share the same hook chain and tool surface.
+The lieutenant has a different env-var profile (`LEAD_AGENT=1`,
+`LEAD_HOOK_SCHEMA=3`, plus 9 other `LEAD_*` vars set by `runner.ps1`)
+that activates the deny-by-default gate INSIDE the existing PreToolUse
+hook. Main CC stays unchanged.
+
+**Will this slow main CC down?**
+
+No. The lead-agent extension is dormant when `LEAD_AGENT` is unset --
+the chained hook block returns immediately and falls through to the
+existing `windows_shell_safety.py`. Only the lieutenant tab pays the
+canonicalization + allowlist + path-guard cost.
+
+**Is BUILDER mode safe to use right now?**
+
+Yes, as a code-review buddy. Branch creation, worktree edits, and draft
+PRs are fully wired. Autonomous `git push` is fail-closed because
+`lib/secret-scan.ps1` is a v1.1 stub -- the gate denies the push tool
+call and nothing leaks. If you specifically need autonomous push, wait
+for v1.1.
+
+**Does this work on macOS or Linux?**
+
+No. v1 is Windows-only. The launcher uses `wt.exe` (Windows Terminal)
+and chains into `windows_shell_safety.py` (Anthropic's Windows safety
+baseline). A Linux port would replace both layers; see
+`## Distribution / forking notes` for the boundaries.
+
+**My fork edits a file under `lib/`. Why does the gate now refuse
+everything?**
+
+The pin manifest at `lib/lead-extension.sha256` covers nine files plus
+a self-hash. Editing any of them invalidates the chain and the hook
+fail-closes on every call. Re-pin with `install.ps1` to regenerate the
+manifest, or `lib/install-hook.ps1 -RepinNotify` for the notify-only
+path.
+
+**Can the lieutenant spawn another lieutenant?**
+
+No. `launch.ps1` checks `$env:LEAD_AGENT_MODE` at startup and refuses
+self-spawn (W-09 recursion guard). This closes the fork-bomb surface.
+The lieutenant inherits the env var from the runner manifest, which is
+HMAC-pinned, so editing the env var post-launch does not bypass the
+check.
+
+**Where do hook decisions get logged?**
+
+`~/.claude/hooks/lead-pretool-hook.log`. The lieutenant only sees the
+generic `denied: <reason>` string in chat; specific reasons stay in the
+log. This prevents a probing lieutenant from enumerating the rules by
+trial and error.
+
+**`/lead-agent` keeps refusing with "stale lockfile detected" -- now
+what?**
+
+See `## Recovery` above for the one-liner cleanup. The short version:
+a prior lieutenant tab closed without releasing its lock, and v1.0
+does not auto-recover. Run the `Remove-Item` line, then retry.
+
+---
+
 ## Uninstall
 
 ```powershell
@@ -272,6 +337,32 @@ so the hook does not fail-closed on integrity check:
 # Repair after a crashed install (restores .bak).
 & "$env:USERPROFILE\.claude\skills\lead-agent\lib\install-hook.ps1" -Repair
 ```
+
+---
+
+## Recovery
+
+If `/lead-agent` refuses with `stale lockfile detected; -Force not yet
+implemented`, the previous lieutenant tab was closed without the runner
+releasing its lockfile -- typical causes: X-button tab close, parent
+process killed, mid-session reboot. This is a known v1.0 limitation;
+auto-recovery lands in v1.1 (`DESIGN.md` section 15.10, F-01 + F-02).
+
+Manual cleanup:
+
+```powershell
+Remove-Item -LiteralPath "$env:LOCALAPPDATA\Temp\lead-agent.lock" -Force
+```
+
+Then re-run `/lead-agent`. If the lockfile reappears immediately, a real
+lieutenant is still running -- find the WT tab and close it
+(`launch.ps1` holds the lock for the LIFE of the spawned tab by design,
+so a live tab will re-acquire the lock the moment you delete it).
+
+`install.ps1 -Verify` prints a yellow drift warning when `-Force` is
+still a stub in your installed version, so you know about this recovery
+path before you need it. The warning auto-silences once v1.1 ships
+proper PID + start-time stale-detection.
 
 ---
 
