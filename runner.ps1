@@ -22,6 +22,66 @@ if (-not (Test-Path -LiteralPath $ManifestPath)) {
     exit 2
 }
 
+# F-02 (DESIGN.md s4.1.3.1 v1.1): runner takes ownership of the lockfile that
+# the launcher created, then arms three release mechanisms so the lock is
+# always cleaned up regardless of how this tab dies.
+#   1. graceful exit  -> finally{} (existing, lines below)
+#   2. Ctrl+C / engine shutdown -> Register-EngineEvent PowerShell.Exiting
+#   3. WT X-button / taskkill /f / parent-kill -> P/Invoke SetConsoleCtrlHandler
+# Layers 1+2 are idempotent with layer 3; whichever fires first wins. The
+# P/Invoke layer is mandatory: PowerShell.Exiting does NOT fire on Windows
+# CTRL_CLOSE_EVENT because the OS terminates the host before the engine
+# reaches managed shutdown.
+$LockPath        = Join-Path $env:LOCALAPPDATA 'Temp\lead-agent.lock'
+$runnerProc      = Get-CimInstance Win32_Process -Filter "ProcessId=$PID"
+$runnerStartIso  = ([datetime]$runnerProc.CreationDate).ToUniversalTime().ToString('o')
+$runnerPpid      = $runnerProc.ParentProcessId
+$lockContent     = @{ pid = $PID; startTime = $runnerStartIso; ppid = $runnerPpid; role = 'runner' } | ConvertTo-Json -Compress
+Set-Content -LiteralPath $LockPath -Value $lockContent -Encoding UTF8 -NoNewline -Force
+
+# Layer 3: P/Invoke console-control handler. The static delegate field keeps
+# the GC from collecting the unmanaged callback pointer mid-tab-life.
+if (-not ([System.Management.Automation.PSTypeName]'LeadAgentLockReleaser').Type) {
+    Add-Type -TypeDefinition @"
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+
+public static class LeadAgentLockReleaser {
+    public delegate bool ConsoleCtrlDelegate(uint ctrlType);
+    [DllImport("kernel32.dll")]
+    public static extern bool SetConsoleCtrlHandler(ConsoleCtrlDelegate handler, bool add);
+    public static string LockPath = "";
+    public static ConsoleCtrlDelegate Handler;
+    public static bool OnCtrl(uint ctrlType) {
+        try {
+            if (!string.IsNullOrEmpty(LockPath) && File.Exists(LockPath)) {
+                File.Delete(LockPath);
+            }
+        } catch {}
+        return false;  // let the OS continue normal shutdown
+    }
+    public static void Arm(string path) {
+        LockPath = path;
+        Handler  = new ConsoleCtrlDelegate(OnCtrl);
+        SetConsoleCtrlHandler(Handler, true);
+    }
+}
+"@
+}
+[LeadAgentLockReleaser]::Arm($LockPath)
+
+# Layer 2: PowerShell.Exiting -- the action runs in its own scope, so we
+# stash the path in a global so the scriptblock can reach it.
+$global:LeadAgentLockPath = $LockPath
+$null = Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action {
+    try {
+        if ($global:LeadAgentLockPath) {
+            Remove-Item -LiteralPath $global:LeadAgentLockPath -Force -ErrorAction SilentlyContinue
+        }
+    } catch {}
+}
+
 # 1. Read manifest (DESIGN.md s3.9 launcher-runner handshake).
 # TODO v1.x: verify manifestFingerprint (V8-3) + ackHmacKey (V8-4) +
 # manifestMtime/manifestFileId stability (V8-8) + createdByImageSha256
@@ -140,9 +200,9 @@ try {
     # post-mortem; v1.x adds an explicit cleanup contract per s4.1.3.9.
     Remove-Item -LiteralPath $tmpPrompt -ErrorAction SilentlyContinue
 
-    # Release the launcher lockfile on exit.
-    $LockPath = Join-Path $env:LOCALAPPDATA 'Temp\lead-agent.lock'
-    Remove-Item -LiteralPath $LockPath -ErrorAction SilentlyContinue
+    # F-02 layer 1: graceful exit lock release. Idempotent with layer 2
+    # (PowerShell.Exiting) and layer 3 (SetConsoleCtrlHandler P/Invoke).
+    Remove-Item -LiteralPath $LockPath -Force -ErrorAction SilentlyContinue
 }
 
 exit $exit
