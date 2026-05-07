@@ -108,8 +108,9 @@ if ($mode -notin 'OVERWATCH', 'ADVISOR', 'BUILDER', 'TOOLSMITH') {
 
 # 2. Env scrub (DESIGN.md s4.1.3.6).
 # Strip every env var that could leak into the lead's tool invocations.
-# Keep only the minimum needed for `claude` to start.
-# TODO v1.x: complete the keep-set audit per DESIGN.md s4.1.3.6 + S-09.
+# Keep only the minimum needed for `claude` to start AND for the MCP
+# servers claude spawns as child processes (node-based MCPs need npx,
+# python-based MCPs need python/uvx, several plugins need git).
 $keep = @(
     'SystemRoot', 'SystemDrive', 'OS', 'COMPUTERNAME', 'USERNAME', 'USERPROFILE',
     'USERDOMAIN', 'HOMEDRIVE', 'HOMEPATH', 'TEMP', 'TMP', 'LOCALAPPDATA',
@@ -121,9 +122,40 @@ $keep = @(
     # Claude itself needs these:
     'ANTHROPIC_API_KEY', 'CLAUDE_CONFIG_DIR', 'CLAUDE_PROJECT_DIR'
 )
-$minPath = "$env:SYSTEMROOT;$env:SYSTEMROOT\System32;$env:SYSTEMROOT\System32\WindowsPowerShell\v1.0;" +
-           (Split-Path -Parent $manifest.claudePath) + ';' +
-           (Split-Path -Parent $manifest.psPath)
+
+# Resolve runtime-tool directories from parent PATH BEFORE scrub clobbers
+# it. Without this expansion the lieutenant tab gets ~14 MCP startup
+# failures (caught 2026-05-04 in v1.0.x lieutenant-spawn debug): claude
+# launches but its node/python MCP children cannot find their interpreters.
+# Missing tools are silently skipped -- this is additive, not validating.
+$toolNames = @(
+    'node.exe', 'npx.cmd', 'npm.cmd', 'pnpm.cmd', 'yarn.cmd',
+    'python.exe', 'python3.exe', 'pythonw.exe',
+    'uv.exe', 'uvx.exe',
+    'git.exe'
+)
+$toolDirs = @{}
+foreach ($t in $toolNames) {
+    $cmd = Get-Command $t -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($cmd -and $cmd.Source) {
+        $dir = Split-Path -Parent $cmd.Source
+        if ($dir) {
+            $key = $dir.ToLower()  # PATH is case-insensitive on Windows
+            if (-not $toolDirs.ContainsKey($key)) {
+                $toolDirs[$key] = $dir
+            }
+        }
+    }
+}
+
+$pathParts = @(
+    "$env:SYSTEMROOT",
+    "$env:SYSTEMROOT\System32",
+    "$env:SYSTEMROOT\System32\WindowsPowerShell\v1.0",
+    (Split-Path -Parent $manifest.claudePath),
+    (Split-Path -Parent $manifest.psPath)
+) + @($toolDirs.Values)
+$minPath = $pathParts -join ';'
 
 Get-ChildItem env: | ForEach-Object {
     if ($_.Name -notin $keep) {
