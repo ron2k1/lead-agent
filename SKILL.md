@@ -1,6 +1,6 @@
 ---
 name: lead-agent
-description: Use when the user types `/lead-agent` (optionally with a subdirectory hint) to spawn a long-lived "lieutenant" Claude Code instance in its own Windows Terminal tab on Screen 2. The lieutenant runs alongside the main CC and operates in one of four modes (OVERWATCH / ADVISOR / BUILDER / TOOLSMITH) determined by the system prompt and runtime allowlist. The slash command must be invoked from main CC (not from inside the lead itself); SKILL.md will detect lead-self-target and refuse. See DESIGN.md for the full contract; v1.0 shipped 2026-05-06 with the runtime gate ACTIVE. ADVISOR + TOOLSMITH modes are READY for daily use; BUILDER + OVERWATCH are PARTIAL (secret-scan + jsonl-watcher remain v1.1 work).
+description: Use when the user types `/lead-agent` (optionally with a subdirectory hint) to spawn a long-lived "lieutenant" Claude Code instance in its own Windows Terminal tab on Screen 2. The lieutenant runs alongside the main CC and operates in one of four modes (OVERWATCH / ADVISOR / BUILDER / TOOLSMITH) determined by the system prompt and runtime allowlist. The slash command must be invoked from main CC (not from inside the lead itself); SKILL.md will detect lead-self-target and refuse. See DESIGN.md for the full contract; v1.0 shipped 2026-05-06 with the runtime gate ACTIVE; v1.1.0 expanded the pin set to 12 files, shipped F-01/F-02 stale-lock auto-recovery, and ships secret-scan + jsonl-watcher as production-grade libraries (BUILDER push + OVERWATCH ingest wiring lands in v1.1.1). ADVISOR + TOOLSMITH modes are READY for daily use; BUILDER + OVERWATCH are PARTIAL (libraries production-grade in v1.1.0; consumer wiring lands in v1.1.1).
 ---
 
 # lead-agent
@@ -25,9 +25,11 @@ control to `launch.ps1`; do not attempt to do its work in-line.
   `%LOCALAPPDATA%\Temp\lead-agent.lock` is held by a live process tree. Refuse
   with the lockfile's PID and suggest closing the prior tab. If the lockfile
   is orphaned (lieutenant tab closed without runner cleanup, parent process
-  killed, mid-session reboot), point the user at README.md `## Recovery` for
-  the manual cleanup one-liner. `-Force` is a documented v1.x stub
-  (`launch.ps1:46-52`); do NOT offer it as a workaround.
+  killed, mid-session reboot), `-Force` reclaims it after PID +
+  Win32_Process.CreationDate stale-detection (F-01, `launch.ps1` lockfile
+  block). For the rare double-failure case where -Force itself fails (lock
+  raced by a peer launcher mid-reclaim), point the user at README.md
+  `## Recovery` for the manual cleanup one-liner.
 
 ## How to invoke
 
@@ -61,22 +63,26 @@ When `launch.ps1` refuses:
 
 - Surface its `lead-agent refuses: <reason>` message verbatim, including
   the `hint:` line.
-- Do NOT offer to bypass via `-Force` -- that flag is a documented v1.x
-  stub (`launch.ps1:46-52` still refuses with
-  `-Force not yet implemented`).
-- For the stale-lockfile case specifically, point the user at README.md
-  `## Recovery` for the manual cleanup one-liner.
+- For stale-lockfile refusals: `-Force` reclaims after PID +
+  Win32_Process.CreationDate stale-detection (F-01 went live in v1.1.0).
+  The hint line in the refusal message tells the user when -Force is
+  the right call. Do NOT offer -Force for live-PID refusals (the lock
+  is held by an actual running lieutenant; -Force will not override
+  that, by design).
+- For the rare double-failure case (lock raced by a peer launcher
+  mid-reclaim), point the user at README.md `## Recovery` for the
+  manual cleanup one-liner.
 
-Closes F-03 + F-04; see DESIGN.md section 15.10.
+Closes F-01 + F-03 + F-04; see DESIGN.md section 15.10.
 
 ## Files
 
-| File | Purpose | Status (v1.0) |
+| File | Purpose | Status (v1.1.0) |
 |---|---|---|
 | `install.ps1` | User-facing bootstrap (preflight + anchor stamp + delegate to install-hook.ps1) | Active |
-| `launch.ps1` | Entrypoint: lockfile + preflight + manifest + WT spawn | Active (launch + lock + manifest with HMAC key wired) |
+| `launch.ps1` | Entrypoint: lockfile + preflight + manifest + WT spawn; F-01 stale-lock reclaim live | Active (launch + lock + manifest with HMAC key wired; -Force reclaims via PID + Win32_Process.CreationDate) |
 | `launch.cmd` | Double-click wrapper | Active |
-| `runner.ps1` | Runs INSIDE the WT tab; reads manifest; env scrub; calls `claude` with the full LEAD_* env-var contract | Active |
+| `runner.ps1` | Runs INSIDE the WT tab; reads manifest; env scrub; calls `claude` with the full LEAD_* env-var contract; F-02 3-layer lock-release on exit (try/finally + Register-EngineEvent + SetConsoleCtrlHandler) | Active (pinned in v1.1.0 manifest after Codex Wave 3c convergence flagged the unpinned-runtime-code BLOCKER) |
 | `system-prompt.md` | Role + DENY hints; ASCII-only | Authored |
 | `lib/path-guard.json` | Single source of truth for write-deny globs (V8-6) | Active |
 | `lib/mcp-allow.json` | Positive MCP allowlist; deny-by-default | Active |
@@ -84,27 +90,28 @@ Closes F-03 + F-04; see DESIGN.md section 15.10.
 | `lib/notify-sh.sha256` | Pin for `~/.claude/tools/notify.sh` (rotated by `install-hook.ps1 -RepinNotify`) | Active |
 | `lib/lead-extension.sha256` | 12-file pin manifest with self-hash chain | Active |
 | `lib/canonicalize-path.py` | 8.3 / casing / slash / symlink normalizer | Active |
-| `lib/allowlist_parser.py` | argv-shape parser with env-var expansion | Active |
-| `lib/sanitize-jsonl.py` | JSONL sanitizer (used by OVERWATCH watcher; library is ready, watcher is stub) | Active |
+| `lib/allowlist_parser.py` | argv-shape parser with env-var expansion + 15-pattern secret regex (mirror of `secret-scan.ps1`) | Active |
+| `lib/sanitize-jsonl.py` | JSONL sanitizer (consumed by `jsonl-watcher.ps1` OVERWATCH ingest loop) | Active |
 | `lib/lead-pretool-hook.py` | The runtime gate (PreToolUse hook); trust-anchor SHA stamped at install time | Active |
 | `lib/install-hook.ps1` | Idempotent hook chain installer (`-Repair`, `-RepinNotify`, `-Uninstall`, `-Force`) | Active |
-| `lib/secret-scan.ps1` | Pre-push secret scanner with manifest writer | Stub (fail-closed) - blocks BUILDER mode autonomous-push, v1.1 |
-| `lib/jsonl-watcher.ps1` | Sanitizing JSONL tail; brake/break writer for OVERWATCH | Stub (fail-closed) - blocks OVERWATCH mode tailing, v1.1 |
-| `README.md` | User-facing install/use/uninstall doc | Active (v1.0) |
+| `lib/secret-scan.ps1` | Pre-push secret scanner: 15-pattern canonical regex set + base64 second-pass + HMAC-SHA256-signed manifest writer | Library production-grade in v1.1.0; BUILDER pre-push **hook wiring** lands in v1.1.1 |
+| `lib/jsonl-watcher.ps1` | Sanitizing JSONL tail (role-prefix neutralizer + 15-pattern secret scrub) + brake-list writer for OVERWATCH | Library production-grade in v1.1.0; OVERWATCH **ingest-loop wiring** lands in v1.1.1 |
+| `README.md` | User-facing install/use/uninstall doc | Active (v1.1.0) |
 
 ## Mode readiness
 
-| Mode | Status | Notes |
+| Mode | Status (v1.1.0) | Notes |
 |---|---|---|
 | ADVISOR | READY | Full read/search/web on a deny-by-default tool surface. Recommended default. |
 | TOOLSMITH | READY | Skill writes go through path-guard with `lib/` excluded. Safe for skill-creator workflows. |
-| BUILDER | PARTIAL | Worktree edits + draft PRs work; pre-push secret scanner is fail-closed stub. Treat as "code-review buddy" until v1.1. |
-| OVERWATCH | PARTIAL | Hook denies tool calls correctly; the JSONL tail/brake-list writer is fail-closed stub. v1.1. |
+| BUILDER | PARTIAL | Worktree edits + draft PRs work. Secret-scan **library** is production-grade in v1.1.0 (15-pattern canonical set + HMAC-signed manifest); the BUILDER pre-push **hook wiring** that calls it is still stubbed and lands in v1.1.1. Treat as "code-review buddy" until v1.1.1; the lieutenant cannot autonomously push to a remote yet. |
+| OVERWATCH | PARTIAL | Hook denies tool calls correctly. JSONL **library** (sanitizer + brake-list writer) is production-grade in v1.1.0; the OVERWATCH **ingest-loop wiring** that tails the lieutenant's JSONL is still stubbed and lands in v1.1.1. |
 
-## v1.0 changelog vs v0.9-final
+## Runtime gate status (v1.1.0)
 
-- All 9 pinned runtime-gate components are ACTIVE (canonicalizer, allowlist parser, hook, JSONL sanitizer, install-hook + 4 JSON pins).
+- All 12 pinned runtime-gate components are ACTIVE (canonicalizer, allowlist parser, hook, JSONL sanitizer, install-hook, secret-scan library, jsonl-watcher library, launch.ps1, runner.ps1 + 3 JSON pins). v1.0.0 shipped 9; v1.1.0 walkback added secret-scan.ps1 + jsonl-watcher.ps1 (library production-grade) and runner.ps1 (Codex Wave 3c convergence on the unpinned-runtime-code BLOCKER).
 - Trust anchor pattern (C7 v0.6) wired: `_ANCHOR_SHA` constant in `lead-pretool-hook.py` is stamped by `install.ps1` from the local `lib/install-hook.ps1` SHA256 BEFORE the pin manifest is written, so distribution-time line-ending drift cannot break the running gate.
-- Bootstrap installer `install.ps1` provides preflight + idempotent install + `-Verify` 5-probe end-to-end check + `-Force`.
-- `lib/secret-scan.ps1` and `lib/jsonl-watcher.ps1` remain fail-closed stubs - the hook still denies dangerous calls, so the deny-by-default invariant holds. BUILDER's autonomous push and OVERWATCH's live tail are both deferred to v1.1.
-- See DESIGN.md section 15.8 for the original v0.9 residuals list and which entries are now closed.
+- Bootstrap installer `install.ps1` provides preflight + idempotent install + `-Verify` 6-probe end-to-end check (marker block, trust-anchor file, `_ANCHOR_SHA` constant, pin-manifest self-hash, `launch.ps1 -Dry`, drift detector) + `-Force`.
+- `lib/secret-scan.ps1` and `lib/jsonl-watcher.ps1` ship as production-grade libraries in v1.1.0; the BUILDER pre-push hook + OVERWATCH ingest-loop **wiring** that consumes them is still stubbed and lands in v1.1.1. The deny-by-default invariant holds in both modes (the hook still denies dangerous calls); the only thing missing is the autonomous-flow plumbing that would actually invoke these libraries.
+- `launch.ps1 -Force` reclaims orphaned lockfiles (F-01 live in v1.1.0) after PID + Win32_Process.CreationDate stale-detection. `runner.ps1` 3-layer lock-release (try/finally + Register-EngineEvent + SetConsoleCtrlHandler P/Invoke; F-02 live in v1.1.0) means orphan locks are now rare to begin with.
+- See DESIGN.md section 15.8 for the residuals list and CHANGELOG.md for v1.0 → v1.1.0 detail.
