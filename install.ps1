@@ -290,12 +290,16 @@ Write-Host "  SkillRoot:  $ScriptRoot"
 Write-Host "  HostHook:   $HostHookPath"
 Write-Host "  Anchor:     $AnchorPath"
 
+# Bootstrap MUST run before Verify so `install.ps1 -Bootstrap -Verify`
+# (the most useful combined invocation for fresh cloners: drop the stub
+# host hook, then verify the chain end-to-end) actually drops the stub.
+# Prior order silently ignored -Bootstrap when paired with -Verify.
+if ($Bootstrap) { Invoke-Bootstrap }
+
 if ($Verify) {
     $ok = Test-Verify
     if ($ok) { exit 0 } else { exit 2 }
 }
-
-if ($Bootstrap) { Invoke-Bootstrap }
 
 Test-Prereq
 Update-AnchorConstant
