@@ -5,6 +5,131 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog (https://keepachangelog.com/en/1.1.0/),
 and this project adheres to Semantic Versioning (https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-05-06
+
+Walkback release. v1.0.x shipped runtime gate + ADVISOR/TOOLSMITH; v1.1.0
+hardens the gate and promotes the secret-scan + jsonl-watcher libraries
+from fail-closed stubs to production-grade implementations. The 4-mode
+matrix is now: ADVISOR + TOOLSMITH READY, BUILDER + OVERWATCH library-ready
+with runtime wiring deferred to v1.1.1.
+
+Driven by codex Wave 3b adversarial re-review (3 BLOCKERs + 4 MAJORs +
+1 MINOR) executed across 9 atomic commits. See `git log v1.0.0..v1.1.0
+--oneline` for the per-commit walkback story.
+
+### Added
+
+- 11-file pin manifest (was 9 in v1.0.0). Now covers `secret-scan.ps1`,
+  `jsonl-watcher.ps1`, `runner.ps1` in addition to v1.0.0's nine files.
+  Closes W3-NEW2 BLOCKER (codex flagged the v1.0.0 set as incomplete --
+  three live runtime files were unsanctioned).
+- Trust anchor `_ANCHOR_SHA` constant in `lead-pretool-hook.py` re-stamped
+  for the expanded pin set:
+  `60ac9d6c8c3eb49e9c95416bbbecbd3664fafcdb333401ab4caace888a714b48`.
+- Production-grade `lib/secret-scan.ps1`: 15-pattern HMAC-signed scan-pass
+  manifest replaces the v1.0.0 fail-closed stub. Library is ready; the
+  BUILDER pre-push hook that calls it remains stubbed in v1.1.0 (see
+  "Known limitations" below).
+- Production-grade `lib/jsonl-watcher.ps1`: tail + sanitizer (secret
+  redact + role-prefix neutralize + truncate) + brake-list writer
+  replaces the v1.0.0 fail-closed stub. Library is ready; the OVERWATCH
+  ingest loop that calls it remains stubbed in v1.1.0.
+- C-01..C-15 fixture test matrix at `tests/fixtures/hook/*.json` plus
+  driver at `tests/run-hook-fixtures.ps1`. 5 allow-cases + 10 deny-cases.
+  15/15 PASS as of `v1.1.0`. Closes #33 from v1.0.0 known-limitations.
+- Lock-recovery preflight in `launch.ps1`: `-Force` mode re-claims a
+  stale lockfile only when the recorded PID is dead OR the recorded
+  CreationDate predates the current process. The (PID, CreationDate)
+  tuple is collision-resistant per the Win32_Process docs and prevents
+  the v1.0.x "PID-recycled-into-different-program" false-reclaim window.
+- Three-layer lock release in `runner.ps1`: try/finally + the
+  `Register-EngineEvent PowerShell.Exiting` event + a P/Invoke
+  `SetConsoleCtrlHandler` callback. The lock now releases on any of:
+  normal exit, unhandled exception, Ctrl-C, console-window-close.
+
+### Changed
+
+- Bash command-chain parser in `lib/allowlist_parser.py` now splits on
+  `&&`, `||`, `;`, `|`, command-substitution `$(...)`, and process
+  substitution `<(...)` BEFORE matching against the allowlist. Each
+  segment must independently pass; a single denied verb in any branch
+  fails the whole input. Closes W3-NEW3 BLOCKER (v1.0.x parsed only the
+  first segment, which let `git status && rm -rf /` slip through).
+  Test matrix: 9 attack vectors denied, 7 legit cases pass.
+- Secret-pattern set unified across the three places it was duplicated
+  (Python `re` in the parser, .NET `Regex` in `secret-scan.ps1`, .NET
+  `Regex` in `jsonl-watcher.ps1`). All three now consume the canonical
+  15-pattern set documented in `DESIGN.md` s6. Closes W3-1 MAJOR.
+- 24 sites across 5 .ps1 files rewritten from `Write-Error <msg>` +
+  `exit 2` to `[Console]::Error.WriteLine(<msg>)` + `exit 2`. Under
+  `$ErrorActionPreference='Stop'` (set by every shipped .ps1 at line
+  ~12-32 for fail-fast hygiene), `Write-Error` raises a terminating
+  WriteErrorException that beats `exit 2` -- the host's exit code
+  defaults to 1 (unhandled error), not the intended 2. The harness
+  reads exit codes with strict equality (0=allow, 2=deny, other=crash);
+  pre-fix every preflight refusal landed in the third bucket.
+  Closes W3-11 MAJOR.
+- C-06..C-15 deny-fixtures tightened to assert per-route generic
+  strings (`"not in mcp-allow.json"` for the 8 mcp routes,
+  `"not in allowlist"` for the 2 catch-all routes) plus negative
+  guards against `"integrity"` and `"mcp-allow"` substrings. v1.0.x
+  asserted only `stdoutContains: "block"` -- a 4-into-1 conflation
+  that let any deny path satisfy any deny fixture. Closes W3-3 MAJOR.
+- The v1.0.x `imperative-strip` label on the watcher sanitizer was
+  inaccurate -- the regex only neutralizes leading role-impersonation
+  prefixes (`^system:`, `^assistant:`, etc.), not generic imperative
+  verbs. Renamed to `role-prefix neutralizer`. Variable, marker
+  string `[NEUTRALIZED-ROLE-PREFIX]` (was `[STRIPPED-IMPERATIVE]`),
+  and four comment lines updated in lockstep. New docblock spells out
+  the W3-NEW3 known-limitation explicitly: mid-string role tokens
+  pass through after `ConvertTo-Json -Compress` flattens nested
+  payloads to a single line. Closes W3-9 TRIVIAL + W3-NEW3 MINOR.
+- `launch.ps1` empty `try { ... } finally { /*comments-only*/ }`
+  wrapper dropped. The 100-line body is now top-level; the
+  lock-hold-for-life rationale is relocated to the lock-acquire site
+  where it constrains the right code. Closes W3-10 TRIVIAL.
+
+### Security
+
+- The `lib/lead-extension.sha256` self-hash terminator now covers 11
+  files instead of 9, increasing the integrity gate's coverage of the
+  runtime path.
+- The expanded pin set means a tampered `secret-scan.ps1` or
+  `jsonl-watcher.ps1` is now caught at hook-invocation time
+  (`_GENERIC_INTEGRITY` deny), where v1.0.x would have allowed it
+  through unchecked.
+- Bash `&&` / `||` / `;` chain bypass closed (W3-NEW3 BLOCKER). v1.0.x
+  was advisory-only on multi-command bash inputs.
+
+### Known limitations
+
+- BUILDER mode autonomous push is STILL BLOCKED. The
+  `lib/secret-scan.ps1` library is now production-grade (15-pattern
+  scan + HMAC-signed scan-pass manifest), but the BUILDER pre-push
+  hook that would call it is still a stub. Scheduled for v1.1.1.
+  v1.0.x called this "scheduled for v1.1"; v1.1.0 is honest that the
+  library shipped but the wiring did not.
+- OVERWATCH mode live JSONL tail is STILL BLOCKED. The
+  `lib/jsonl-watcher.ps1` library is now production-grade (tail +
+  sanitizer + brake-list writer), but the OVERWATCH ingest loop that
+  would call it is still a stub. Scheduled for v1.1.1. Same
+  honesty-update note as BUILDER.
+- Trust-anchor file-write race (W3-NEW1 BLOCKER, deferred per
+  Critical Filter): the external fallback at
+  `~/.claude/lead-agent-trust-anchor.txt` is ACL-locked with
+  `Everyone:(DENY)`, but a sufficiently-privileged adversary could
+  in principle race the file-write during install. Acceptable in
+  v1.1.0 because the inline `_ANCHOR_SHA` constant takes precedence
+  over the fallback file in every code path -- the fallback only
+  matters if a packager strips the constant, which the integrity
+  manifest catches. v1.1.1 will harden the file write itself.
+- Spec residuals deferred to v1.1.1: V8-10 (Set-PSDebug -Trace 0 +
+  Start-Transcript refusal preflight), V8-11 (regex-engine pin
+  promote to spec-global), V8-12 (rewrite DESIGN.md s12.3 + s12.4
+  hook-deny prose to "internally classify; emit generic; log specific").
+
+[1.1.0]: https://github.com/ron2k1/lead-agent/releases/tag/v1.1.0
+
 ## [1.0.0] - 2026-05-06
 
 First public release. Runtime gate is live and trust-chain end-to-end verified.
