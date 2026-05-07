@@ -55,13 +55,31 @@ See `git log v1.0.0..v1.1.0 --oneline` for the per-commit walkback story.
 
 ### Changed
 
-- Bash command-chain parser in `lib/allowlist_parser.py` now splits on
-  `&&`, `||`, `;`, `|`, command-substitution `$(...)`, and process
-  substitution `<(...)` BEFORE matching against the allowlist. Each
-  segment must independently pass; a single denied verb in any branch
-  fails the whole input. Closes W3-NEW3 BLOCKER (v1.0.x parsed only the
-  first segment, which let `git status && rm -rf /` slip through).
-  Test matrix: 9 attack vectors denied, 7 legit cases pass.
+- Bash command-chain parser in `lib/allowlist_parser.py` now denies on
+  detection of any shell control token. The `tokenize()` function uses
+  `shlex(punctuation_chars=True, whitespace_split=True)` so operators
+  emit as standalone tokens regardless of surrounding whitespace
+  (`cmd1;cmd2` -> `['cmd1', ';', 'cmd2']`), then a frozenset membership
+  check (`_SHELL_CONTROL_TOKENS`: `;`, `&&`, `||`, `|`, `&`, `>`, `>>`,
+  `<`, `<<`, `<<<`, `(`, `)`) raises `AllowlistError("denied: shell
+  metacharacter disallowed")` on the first hit. Command-substitution
+  sigils (`$(`, backtick) and statement separators (`\n`, `\r`) are
+  scanned in the raw input before tokenization since shlex does not
+  treat `$` as punctuation and bash expands command substitution even
+  inside double quotes. Closes W3-NEW3 BLOCKER (v1.0.x parsed only the
+  first segment via `shlex.split`, which let `git status && rm -rf /`
+  slip through).
+
+  Note: this is deny-on-detect, not split-and-validate-each-segment.
+  The implementation is *strictly more restrictive* than per-segment
+  allowlist matching -- a single shell metacharacter anywhere in the
+  argv stream denies the whole input, even if every segment in
+  isolation would have been allowlisted. The split-validate variant
+  (W3-NEW3 in DESIGN.md s12) is documented as the v1.x backlog
+  refinement; it would relax this gate to allow legitimate compound
+  commands (`git fetch && git rebase`) by validating each segment
+  against the allowlist independently. Until that lands, callers
+  needing pipelines must split into separate Bash invocations.
 - Secret-pattern set unified across the three places it was duplicated
   (Python `re` in the parser, .NET `Regex` in `secret-scan.ps1`, .NET
   `Regex` in `jsonl-watcher.ps1`). All three now consume the canonical
