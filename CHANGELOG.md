@@ -81,11 +81,11 @@ See `git log v1.0.0..v1.1.0 --oneline` for the per-commit walkback story.
   allowlist matching -- a single shell metacharacter anywhere in the
   argv stream denies the whole input, even if every segment in
   isolation would have been allowlisted. The split-validate variant
-  (W3-NEW3 in DESIGN.md s12) is documented as the v1.x backlog
-  refinement; it would relax this gate to allow legitimate compound
-  commands (`git fetch && git rebase`) by validating each segment
-  against the allowlist independently. Until that lands, callers
-  needing pipelines must split into separate Bash invocations.
+  is documented in DESIGN.md s12.2 as a v1.x backlog refinement; it
+  would relax this gate to allow legitimate compound commands
+  (`git fetch && git rebase`) by validating each segment against
+  the allowlist independently. Until that lands, callers needing
+  pipelines must split into separate Bash invocations.
 - Secret-pattern set unified across the three places it was duplicated
   (Python `re` in the parser, .NET `Regex` in `secret-scan.ps1`, .NET
   `Regex` in `jsonl-watcher.ps1`). All three now consume the canonical
