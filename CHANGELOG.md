@@ -5,6 +5,103 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog (https://keepachangelog.com/en/1.1.0/),
 and this project adheres to Semantic Versioning (https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-05-07
+
+Distribution-first patch release. v1.1.0 shipped with a doc claim that
+`~/.claude/hooks/windows_shell_safety.py` was an "Anthropic Windows
+safety baseline" -- it is not. Anthropic does not ship that file. It is
+the user's own custom PreToolUse hook, which fresh cloners do not have.
+The v1.1.0 install therefore refused for any stranger trying to clone
+the repo and use the skill. v1.1.1 closes that distribution gap, plus
+two runtime fixes that surfaced once the install path actually worked
+end-to-end on a fresh machine.
+
+No security model changes. No allowlist or path-guard changes. No pin
+manifest schema changes (manifest contents re-pinned because launch.ps1
+and runner.ps1 changed). The deny-by-default invariant is identical to
+v1.1.0; this release only fixes user-facing distribution friction and
+two latent runtime bugs.
+
+### Added
+
+- `lib/windows_shell_safety_stub.py` (50-line ASCII no-op host hook).
+  Drains stdin, exits 0 -- a chain anchor for the lead-agent gate, not
+  a security feature on its own. NOT pinned in
+  `lib/lead-extension.sha256` by design (users are expected to replace
+  or harden their own host hook). Provides a positive answer to "what
+  do strangers without an existing PreToolUse hook do?".
+- `install.ps1 -Bootstrap` flag. Idempotently copies the stub to
+  `~/.claude/hooks/windows_shell_safety.py` if no host hook is present;
+  refuses to overwrite an existing host hook (custom hooks are sacred).
+  Dispatch happens BEFORE `Test-Prereq` so the preflight check sees the
+  just-installed stub. Updated the host-hook preflight hint to point
+  fresh cloners at `-Bootstrap` instead of the false "install
+  Anthropic's baseline" path.
+
+### Fixed
+
+- `runner.ps1` env-scrub no longer breaks lieutenant MCP children.
+  v1.1.0's scrub destroyed `PATH` before child processes could resolve
+  `node` / `npx` / `npm` / `pnpm` / `yarn` / `python` / `python3` /
+  `pythonw` / `uv` / `uvx` / `git`, breaking 14+ MCP servers on
+  lieutenant launch. Fixed by resolving each tool via `Get-Command`
+  BEFORE the scrub loop runs, deduping case-insensitively (Windows
+  PATH semantics), and appending the resolved directories to `$minPath`.
+  Missing tools are silently skipped (additive, not validating). The
+  scrub still removes everything else, preserving the v1.1.0
+  attack-surface reduction.
+- `launch.ps1 -Dry` no longer leaks the lockfile + manifest temp file.
+  v1.1.0's `-Dry` branch acquired both resources at lines 44 and 179
+  but returned at line 201 without spawning the runner that would
+  release them. `install.ps1 -Verify` probe 5 invokes `-Dry`, so every
+  verify run was poisoning the lead-agent state and accumulating stale
+  GUID-named blobs in `%LOCALAPPDATA%\Temp\`. Fixed by
+  `Remove-Item -LiteralPath ... -Force -ErrorAction SilentlyContinue`
+  on both paths immediately before the `-Dry` `return`. Real-spawn
+  path unchanged (deletes are inside the `if ($Dry)` branch).
+
+### Changed
+
+- `README.md` rewritten to lead with the actual product pitch
+  ("deny-by-default gate for a SECOND CC instance") instead of a
+  technical preamble. Three doc fixes: (1) fear-first opener after the
+  badges; (2) `windows_shell_safety.py` reclassified from HARD to SOFT
+  requirement with three install paths (own hook / `-Bootstrap` stub /
+  `-HookFileOverride <path>`); (3) FAQ "macOS or Linux?" answer no
+  longer claims the host hook is an Anthropic baseline. Install
+  procedure step #2 gained a one-line `-Bootstrap` callout for fresh
+  cloners.
+- `SECURITY.md` "out of scope" entry for the host hook now states
+  provenance positively: the host hook is USER-PROVIDED, not
+  vendor-supplied. Adds a positive carve-out that bugs in the bundled
+  stub which break the chain anchor (preventing lead-agent from
+  extending) ARE in scope, even though the stub itself is allow-all.
+  Also makes explicit that the stub does not provide additional
+  security on its own -- the lead-agent gate runs ON TOP when
+  `LEAD_AGENT=1`.
+- `lib/lead-extension.sha256` re-pinned twice during v1.1.1: once for
+  `runner.ps1` (PATH expansion edit) and once for `launch.ps1` (-Dry
+  leak fix). Final values:
+  - `runner.ps1`: `8820d65e782f5873dc5899997b6cf22ea449d37d34da221318f8cbd253f85382`
+  - `launch.ps1`: `d7f0668773686d5927c7eac51105ab903e87ed6e9744d28119565d26b1e43ff4`
+  - self-hash: `2a92cab63b39f447f5a6ef3a0d84f7c48dda62fa9f6d43ecf60536afce8294b6`
+- `.commitmsg` and `.tagmsg-*` workflow files added to `.gitignore`.
+  These are per-commit `git commit -F <file>` / `git tag -F <file>`
+  workflow artifacts that should never have been tracked in the first
+  place. Same category as the already-ignored `.codex-review-prompt.txt`.
+
+### Known limitations carried forward from v1.1.0
+
+- BUILDER pre-push hook wiring still deferred (lib is production-grade,
+  caller is missing). Tracked for v1.2 along with the v1.2 task-board
+  work.
+- OVERWATCH ingest loop wiring still deferred (lib is production-grade,
+  driver is missing). Tracked for v1.2.
+- W3-NEW3 MINOR (mid-string role tokens slipping through after
+  `ConvertTo-Json -Compress` flattens nested payloads) still
+  outstanding. The `lib/jsonl-watcher.ps1` library is the affected
+  surface; fix lands when the OVERWATCH driver wiring goes in.
+
 ## [1.1.0] - 2026-05-06
 
 Walkback release. v1.0.x shipped runtime gate + ADVISOR/TOOLSMITH; v1.1.0
