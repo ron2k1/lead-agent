@@ -19,7 +19,7 @@ param(
 #     normalization to defeat C:\foo vs C:\foo-evil prefix-overlap).
 #   - Self-target refusal: refuses if path contains the caller session
 #     id (W-09 lead-self-target exclusion).
-#   - 15-pattern secret pin-set MIRROR of lib/secret-scan.ps1 — the
+#   - 15-pattern secret pin-set MIRROR of lib/secret-scan.ps1 -- the
 #     two scanners must redact the same alphabet (rotate together).
 #   - Imperative-strip: narrow regex anchored at start-of-line targeting
 #     role-impersonation only (system:/assistant:/lead-agent:/"ignore
@@ -132,7 +132,7 @@ if ($env:LEAD_AGENT_CALLER_SESSION_ID) {
     }
 }
 
-# 15-pattern secret pin-set (MIRROR of lib/secret-scan.ps1 — keep in
+# 15-pattern secret pin-set (MIRROR of lib/secret-scan.ps1 -- keep in
 # sync; the two scanners must redact the same alphabet so OVERWATCH
 # never bleeds a secret that BUILDER's diff-scan would have caught).
 $secretPatterns = @(
@@ -158,7 +158,7 @@ $compiledSecrets = foreach ($p in $secretPatterns) {
 
 # Imperative-strip targets role-impersonation prompt-injection only.
 # Anchored at start-of-line, IgnoreCase, multiline. NOT a generic
-# verb-stripper — that would gut legit transcript content.
+# verb-stripper -- that would gut legit transcript content.
 $imperativeRe = [System.Text.RegularExpressions.Regex]::new(
     '^\s*(?:lead[-\s]?agent[,:]|claude(?:\s+code)?\s*[,:]|system\s*:|assistant\s*:|<\s*system\s*>|you\s+are\s+now\s+|ignore\s+(?:all\s+)?(?:previous|prior)\s+instructions)',
     ([System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor `
@@ -221,7 +221,7 @@ try {
         }
         $sr = New-Object System.IO.StreamReader($fs, [System.Text.Encoding]::UTF8)
         try {
-            # If we seeked, the first line is partial — discard it.
+            # If we seeked, the first line is partial -- discard it.
             if ($fs.Length -gt $tailBytes) { $null = $sr.ReadLine() }
             while (-not $sr.EndOfStream) {
                 $lines.Add($sr.ReadLine())
@@ -302,7 +302,7 @@ $body = [ordered]@{
 $bodyJson = $body | ConvertTo-Json -Compress -Depth 10
 
 # HMAC sign if key present. Otherwise emit body alone (caller decides
-# whether unsigned is acceptable — pin manifest will reject it).
+# whether unsigned is acceptable -- pin manifest will reject it).
 $envelope = [ordered]@{
     schemaVersion = '1.1.0-jsonl-watcher-envelope'
     bodyJson      = $bodyJson
