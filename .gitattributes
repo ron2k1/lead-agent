@@ -1,0 +1,17 @@
+# Force LF endings on every text file across all checkouts.
+#
+# The hook's pin chain (lib/lead-pretool-hook.py:_PIN_FILES + the
+# trust anchor on lib/install-hook.ps1) is byte-exact: every pin
+# entry stores SHA256 of the on-disk file, so a single CRLF byte
+# changes the hash and trips _GENERIC_INTEGRITY = "denied:
+# integrity check failed".
+#
+# GitHub Actions windows-latest runners default to
+# core.autocrlf=true, which silently rewrites LF -> CRLF on
+# checkout. That made the CI hook-fixture matrix fail closed
+# (run 25471550505) while local checkouts (core.autocrlf=false)
+# passed. Pinning eol=lf via .gitattributes overrides
+# autocrlf for this repo on every platform.
+#
+# Repo is pure-text -- no binary assets to exempt.
+* text=auto eol=lf
