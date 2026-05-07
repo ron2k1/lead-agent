@@ -6,8 +6,8 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/ron2k1/lead-agent/ci.yml?branch=main&label=CI)](https://github.com/ron2k1/lead-agent/actions)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.1.0-informational)](CHANGELOG.md)
-[![Status](https://img.shields.io/badge/status-v1.1%20partial-yellow)](#status)
+[![Version](https://img.shields.io/badge/version-1.1.1-informational)](CHANGELOG.md)
+[![Status](https://img.shields.io/badge/status-v1.1.1%20partial-yellow)](#status)
 
 ---
 
@@ -22,26 +22,31 @@ The 30-second pitch: open `/lead-agent` in your main CC, get a fresh
 Claude Code tab on your second monitor with a different system prompt
 and a tighter tool surface. Use it as a code-review buddy (ADVISOR),
 to refine your skills (TOOLSMITH), or to prepare branches with no push
-authority (BUILDER, partial in v1.1.0). The runtime gate is identical
-across all four modes; only the allowlist differs.
+authority (BUILDER, library-grade in v1.1.0; pre-push hook wiring lands
+in v1.2). The runtime gate is identical across all four modes; only
+the allowlist differs.
 
 ---
 
 ## Status
 
-v1.1.0 shipped 2026-05-06 as a walkback over v1.0.x. The runtime gate is
-live and the 12-file pin chain (was 9 in v1.0) plus trust anchor are
-end-to-end verified. ADVISOR and TOOLSMITH modes are READY for daily use.
-BUILDER's pre-push secret scanner (`lib/secret-scan.ps1`) and OVERWATCH's
-JSONL watcher (`lib/jsonl-watcher.ps1`) shipped as production-grade
-libraries in v1.1.0 -- but the BUILDER pre-push hook and OVERWATCH ingest
-loop that call them are still stubs. Wiring lands in v1.1.1. The gate
-still denies-by-default in those modes; the stubs only block the
-autonomous sub-flows, not the gate itself.
+v1.1.0 shipped 2026-05-06 as a walkback over v1.0.x. v1.1.1 shipped
+2026-05-07 as a distribution-first patch (closes the host-hook bootstrap
+gap with `install.ps1 -Bootstrap` and a bundled stub; fixes runner.ps1
+PATH scrub for MCP children; fixes launch.ps1 -Dry temp-resource leak).
+The runtime gate is live and the 12-file pin chain (was 9 in v1.0) plus
+trust anchor are end-to-end verified. ADVISOR and TOOLSMITH modes are
+READY for daily use. BUILDER's pre-push secret scanner
+(`lib/secret-scan.ps1`) and OVERWATCH's JSONL watcher
+(`lib/jsonl-watcher.ps1`) shipped as production-grade libraries in
+v1.1.0 -- but the BUILDER pre-push hook and OVERWATCH ingest loop that
+call them are still stubs. Wiring lands in v1.2 alongside the task-board
+work. The gate still denies-by-default in those modes; the stubs only
+block the autonomous sub-flows, not the gate itself.
 
 If you want a "send a second Claude to advise me / refine skills" pattern
 today, install. If you specifically need autonomous push or live transcript
-overwatch, wait for v1.1.1 (the libraries ship in v1.1.0; the wiring does
+overwatch, wait for v1.2 (the libraries ship in v1.1.0; the wiring does
 not).
 
 See `## Mode readiness` below for the full split.
@@ -183,12 +188,12 @@ modes fully implemented in v1.1.0.
 
 ### Mode readiness
 
-| Mode | v1.1.0 readiness |
+| Mode | v1.1.1 readiness |
 |---|---|
 | ADVISOR | READY. Full read/search/web on a deny-by-default tool surface. |
 | TOOLSMITH | READY. Skill writes go through path-guard with `lib/` excluded. |
-| BUILDER | PARTIAL. The secret scanner library (`lib/secret-scan.ps1`) is now production-grade in v1.1.0: 15-pattern HMAC-signed scan-pass manifest. But the BUILDER pre-push hook that would call it is still stubbed, so `git push` remains gated. Use BUILDER for branch + draft PR work that does NOT require pushing yet. Wiring lands in v1.1.1. |
-| OVERWATCH | PARTIAL. The watcher library (`lib/jsonl-watcher.ps1`) is now production-grade in v1.1.0: tail + sanitizer (secret-redact + role-prefix neutralizer + truncate) + brake-list writer. But the OVERWATCH ingest loop that would call it is still stubbed, so sibling JSONL ingestion is not live. The brake-file write path works. Wiring lands in v1.1.1. |
+| BUILDER | PARTIAL. The secret scanner library (`lib/secret-scan.ps1`) is production-grade since v1.1.0: 15-pattern HMAC-signed scan-pass manifest. But the BUILDER pre-push hook that would call it is still stubbed, so `git push` remains gated. Use BUILDER for branch + draft PR work that does NOT require pushing yet. Wiring lands in v1.2 alongside the task-board work. |
+| OVERWATCH | PARTIAL. The watcher library (`lib/jsonl-watcher.ps1`) is production-grade since v1.1.0: tail + sanitizer (secret-redact + role-prefix neutralizer + truncate) + brake-list writer. But the OVERWATCH ingest loop that would call it is still stubbed, so sibling JSONL ingestion is not live. The brake-file write path works. Wiring lands in v1.2. |
 
 ---
 
@@ -271,12 +276,12 @@ the rules.
   prompt-injection vector). The v1.1.0 watcher library
   (`lib/jsonl-watcher.ps1`) sanitizes content via secret-redact +
   role-prefix neutralizer + truncate before any consumer reads it. The
-  library is production-grade in v1.1.0; the OVERWATCH ingest loop that
+  library is production-grade since v1.1.0; the OVERWATCH ingest loop that
   would call it is still stubbed, so sibling-JSONL ingestion is not yet
-  live in v1.1.0. This is a forward-looking guarantee that lands fully
-  when v1.1.1 wires the loop. Known limitation: mid-string role tokens
+  live as of v1.1.1. This is a forward-looking guarantee that lands fully
+  when v1.2 wires the loop. Known limitation: mid-string role tokens
   pass through after `ConvertTo-Json -Compress` flattens nested
-  payloads to a single line (W3-NEW3 MINOR, scheduled for v1.1.1).
+  payloads to a single line (W3-NEW3 MINOR, scheduled for v1.2).
 
 ---
 
@@ -302,10 +307,10 @@ canonicalization + allowlist + path-guard cost.
 Yes, as a code-review buddy. Branch creation, worktree edits, and draft
 PRs are fully wired. Autonomous `git push` is fail-closed because the
 BUILDER pre-push hook that would call `lib/secret-scan.ps1` is still
-stubbed in v1.1.0 -- the gate denies the push tool call and nothing
+stubbed as of v1.1.1 -- the gate denies the push tool call and nothing
 leaks. The scanner library itself shipped production-grade in v1.1.0
 (15-pattern HMAC-signed scan-pass manifest); only the wiring is
-deferred. If you specifically need autonomous push, wait for v1.1.1.
+deferred. If you specifically need autonomous push, wait for v1.2.
 
 **Does this work on macOS or Linux?**
 
@@ -494,8 +499,9 @@ within 5 business days.
 | `lib/mcp-allow.json` | Positive MCP allowlist. |
 | `lib/notify-sh.sha256` | Pinned hash of `~/.claude/tools/notify.sh`. |
 | `lib/lead-extension.sha256` | 12-file pin manifest plus self-hash. |
-| `lib/secret-scan.ps1` | BUILDER pre-push secret scanner. PRODUCTION-GRADE LIBRARY in v1.1.0; BUILDER pre-push hook wiring lands in v1.1.1. |
-| `lib/jsonl-watcher.ps1` | OVERWATCH transcript tailer. PRODUCTION-GRADE LIBRARY in v1.1.0; OVERWATCH ingest loop wiring lands in v1.1.1. |
+| `lib/secret-scan.ps1` | BUILDER pre-push secret scanner. PRODUCTION-GRADE LIBRARY since v1.1.0; BUILDER pre-push hook wiring lands in v1.2. |
+| `lib/jsonl-watcher.ps1` | OVERWATCH transcript tailer. PRODUCTION-GRADE LIBRARY since v1.1.0; OVERWATCH ingest loop wiring lands in v1.2. |
+| `lib/windows_shell_safety_stub.py` | Bundled 50-line ASCII no-op host hook copied to `~/.claude/hooks/windows_shell_safety.py` by `install.ps1 -Bootstrap` for fresh cloners with no existing host hook. Allow-all on its own; the lead-agent gate runs ON TOP when `LEAD_AGENT=1`. NOT pinned in `lib/lead-extension.sha256` by design. v1.1.1. |
 | `lib/path-guard.ps1` | Standalone path-guard CLI. STUB. The path-guard logic itself runs inside the hook and is unaffected. |
 
 ---
