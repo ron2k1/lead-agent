@@ -6,23 +6,27 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/ron2k1/lead-agent/ci.yml?branch=main&label=CI)](https://github.com/ron2k1/lead-agent/actions)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-informational)](CHANGELOG.md)
-[![Status](https://img.shields.io/badge/status-v1.0%20partial-yellow)](#status)
+[![Version](https://img.shields.io/badge/version-1.1.0-informational)](CHANGELOG.md)
+[![Status](https://img.shields.io/badge/status-v1.1%20partial-yellow)](#status)
 
 ---
 
 ## Status
 
-v1.0 shipped 2026-05-06. The runtime gate is live and the 9-file pin chain
-plus trust anchor are end-to-end verified. ADVISOR and TOOLSMITH modes are
-READY for daily use. BUILDER's pre-push secret scanner and OVERWATCH's JSONL
-watcher are fail-closed stubs in v1.0 and ship in v1.1. The gate still
-denies-by-default in those modes -- the stubs only block the autonomous
-sub-flows, not the gate itself.
+v1.1.0 shipped 2026-05-06 as a walkback over v1.0.x. The runtime gate is
+live and the 11-file pin chain (was 9 in v1.0) plus trust anchor are
+end-to-end verified. ADVISOR and TOOLSMITH modes are READY for daily use.
+BUILDER's pre-push secret scanner (`lib/secret-scan.ps1`) and OVERWATCH's
+JSONL watcher (`lib/jsonl-watcher.ps1`) shipped as production-grade
+libraries in v1.1.0 -- but the BUILDER pre-push hook and OVERWATCH ingest
+loop that call them are still stubs. Wiring lands in v1.1.1. The gate
+still denies-by-default in those modes; the stubs only block the
+autonomous sub-flows, not the gate itself.
 
 If you want a "send a second Claude to advise me / refine skills" pattern
 today, install. If you specifically need autonomous push or live transcript
-overwatch, wait for v1.1.
+overwatch, wait for v1.1.1 (the libraries ship in v1.1.0; the wiring does
+not).
 
 See `## Mode readiness` below for the full split.
 
@@ -144,16 +148,16 @@ Pick the mode at launch via `-Mode`:
 | TOOLSMITH | Refines skills under `~/.claude/skills/`. Cannot modify `lib/` or hook configs. | `~/.claude/skills/` only (excluding lead-agent itself) |
 
 The default is `ADVISOR`. Together with TOOLSMITH it is one of the two
-modes fully implemented in v1.0.
+modes fully implemented in v1.1.0.
 
 ### Mode readiness
 
-| Mode | v1.0 readiness |
+| Mode | v1.1.0 readiness |
 |---|---|
 | ADVISOR | READY. Full read/search/web on a deny-by-default tool surface. |
 | TOOLSMITH | READY. Skill writes go through path-guard with `lib/` excluded. |
-| BUILDER | PARTIAL. `git push` is denied without a fresh secret-scan-passed manifest, and the secret scanner (`lib/secret-scan.ps1`) is still a fail-closed stub. Use BUILDER for branch + draft PR work that does NOT require pushing yet. Pre-push lands in v1.1. |
-| OVERWATCH | PARTIAL. The JSONL watcher (`lib/jsonl-watcher.ps1`) is a fail-closed stub. The brake-file write path works, but ingestion of sibling transcripts does not. Lands in v1.1. |
+| BUILDER | PARTIAL. The secret scanner library (`lib/secret-scan.ps1`) is now production-grade in v1.1.0: 15-pattern HMAC-signed scan-pass manifest. But the BUILDER pre-push hook that would call it is still stubbed, so `git push` remains gated. Use BUILDER for branch + draft PR work that does NOT require pushing yet. Wiring lands in v1.1.1. |
+| OVERWATCH | PARTIAL. The watcher library (`lib/jsonl-watcher.ps1`) is now production-grade in v1.1.0: tail + sanitizer (secret-redact + role-prefix neutralizer + truncate) + brake-list writer. But the OVERWATCH ingest loop that would call it is still stubbed, so sibling JSONL ingestion is not live. The brake-file write path works. Wiring lands in v1.1.1. |
 
 ---
 
@@ -189,9 +193,11 @@ PreToolUse fires:
 1. Verifies `LEAD_AGENT=1`. If unset, the hook delegates to the host
    `windows_shell_safety.py` (the gate is dormant in non-lead sessions).
    If set, the lead gate takes over.
-2. Re-verifies the 9-file pin manifest at `lib/lead-extension.sha256` on
+2. Re-verifies the 11-file pin manifest at `lib/lead-extension.sha256` on
    every call (not just at launch). Closes the v0.4 SE-S2
-   swap-after-startup window. Any drift fails closed.
+   swap-after-startup window. Any drift fails closed. v1.1.0 expanded
+   the manifest from 9 files to 11 to cover `secret-scan.ps1`,
+   `jsonl-watcher.ps1`, and `runner.ps1` (W3-NEW2).
 3. Re-verifies the trust anchor at
    `~/.claude/lead-agent-trust-anchor.txt` matches the SHA constant
    `_ANCHOR_SHA` in `lib/lead-pretool-hook.py`, which `install.ps1`
@@ -228,12 +234,16 @@ the rules.
   hook will not act on the lieutenant's claims -- it does not mean the
   lieutenant cannot mislead a human reading its output. Treat lieutenant
   text the same as any LLM output.
-- When OVERWATCH ships in v1.1, sibling JSONL transcripts will be
-  treated as attacker-controlled (W-13 prompt-injection vector). The
-  watcher will sanitize content via `lib/sanitize-jsonl.py` before the
-  lieutenant reads it. In v1.0 the watcher is fail-closed and no
-  sibling-JSONL ingestion is live, so this is a forward-looking
-  guarantee, not a v1.0 one.
+- Sibling JSONL transcripts are treated as attacker-controlled (W-13
+  prompt-injection vector). The v1.1.0 watcher library
+  (`lib/jsonl-watcher.ps1`) sanitizes content via secret-redact +
+  role-prefix neutralizer + truncate before any consumer reads it. The
+  library is production-grade in v1.1.0; the OVERWATCH ingest loop that
+  would call it is still stubbed, so sibling-JSONL ingestion is not yet
+  live in v1.1.0. This is a forward-looking guarantee that lands fully
+  when v1.1.1 wires the loop. Known limitation: mid-string role tokens
+  pass through after `ConvertTo-Json -Compress` flattens nested
+  payloads to a single line (W3-NEW3 MINOR, scheduled for v1.1.1).
 
 ---
 
@@ -257,10 +267,12 @@ canonicalization + allowlist + path-guard cost.
 **Is BUILDER mode safe to use right now?**
 
 Yes, as a code-review buddy. Branch creation, worktree edits, and draft
-PRs are fully wired. Autonomous `git push` is fail-closed because
-`lib/secret-scan.ps1` is a v1.1 stub -- the gate denies the push tool
-call and nothing leaks. If you specifically need autonomous push, wait
-for v1.1.
+PRs are fully wired. Autonomous `git push` is fail-closed because the
+BUILDER pre-push hook that would call `lib/secret-scan.ps1` is still
+stubbed in v1.1.0 -- the gate denies the push tool call and nothing
+leaks. The scanner library itself shipped production-grade in v1.1.0
+(15-pattern HMAC-signed scan-pass manifest); only the wiring is
+deferred. If you specifically need autonomous push, wait for v1.1.1.
 
 **Does this work on macOS or Linux?**
 
@@ -272,11 +284,12 @@ baseline). A Linux port would replace both layers; see
 **My fork edits a file under `lib/`. Why does the gate now refuse
 everything?**
 
-The pin manifest at `lib/lead-extension.sha256` covers nine files plus
-a self-hash. Editing any of them invalidates the chain and the hook
-fail-closes on every call. Re-pin with `install.ps1` to regenerate the
-manifest, or `lib/install-hook.ps1 -RepinNotify` for the notify-only
-path.
+The pin manifest at `lib/lead-extension.sha256` covers eleven files
+plus a self-hash (was nine in v1.0; v1.1.0 added `secret-scan.ps1`,
+`jsonl-watcher.ps1`, and `runner.ps1` per W3-NEW2). Editing any of
+them invalidates the chain and the hook fail-closes on every call.
+Re-pin with `install.ps1` to regenerate the manifest, or
+`lib/install-hook.ps1 -RepinNotify` for the notify-only path.
 
 **Can the lieutenant spawn another lieutenant?**
 
@@ -296,9 +309,13 @@ trial and error.
 **`/lead-agent` keeps refusing with "stale lockfile detected" -- now
 what?**
 
-See `## Recovery` above for the one-liner cleanup. The short version:
-a prior lieutenant tab closed without releasing its lock, and v1.0
-does not auto-recover. Run the `Remove-Item` line, then retry.
+See `## Recovery` above for the one-liner cleanup. v1.1.0 added
+`launch.ps1 -Force` lock-recovery preflight (PID + Win32_Process
+CreationDate stale-detection per F-01) plus a 3-layer release in
+`runner.ps1` (try/finally + Register-EngineEvent +
+SetConsoleCtrlHandler per F-02). Most stale locks now self-clear; the
+manual `Remove-Item` path is the fallback for cases where both layers
+fail. Run the `Remove-Item` line, then retry.
 
 ---
 
@@ -342,11 +359,15 @@ so the hook does not fail-closed on integrity check:
 
 ## Recovery
 
-If `/lead-agent` refuses with `stale lockfile detected; -Force not yet
-implemented`, the previous lieutenant tab was closed without the runner
-releasing its lockfile -- typical causes: X-button tab close, parent
-process killed, mid-session reboot. This is a known v1.0 limitation;
-auto-recovery lands in v1.1 (`DESIGN.md` section 15.10, F-01 + F-02).
+If `/lead-agent` refuses with `stale lockfile detected`, the previous
+lieutenant tab was closed without the runner releasing its lockfile --
+typical causes: X-button tab close, parent process killed, mid-session
+reboot. v1.1.0 added auto-recovery via `launch.ps1 -Force` (PID +
+Win32_Process CreationDate stale-detection per F-01) plus a 3-layer
+release in `runner.ps1` (try/finally + Register-EngineEvent +
+SetConsoleCtrlHandler per F-02; `DESIGN.md` section 15.10). Most
+double-failure cases that v1.0.x left stuck now self-clear; the manual
+cleanup below is the fallback.
 
 Manual cleanup:
 
@@ -359,10 +380,12 @@ lieutenant is still running -- find the WT tab and close it
 (`launch.ps1` holds the lock for the LIFE of the spawned tab by design,
 so a live tab will re-acquire the lock the moment you delete it).
 
-`install.ps1 -Verify` prints a yellow drift warning when `-Force` is
-still a stub in your installed version, so you know about this recovery
-path before you need it. The warning auto-silences once v1.1 ships
-proper PID + start-time stale-detection.
+v1.1.0 ships proper PID + Win32_Process CreationDate stale-detection
+under `launch.ps1 -Force`, plus the runner.ps1 3-layer release that
+clears the lock on normal exit, unhandled exception, Ctrl-C, or
+console-window-close. The v1.0.x yellow drift warning is gone; the
+recovery path documented above is now the fallback for the rare
+double-failure case, not the default.
 
 ---
 
@@ -382,11 +405,14 @@ within 5 business days.
   pinned. A Unicode normalization pass on a fork will break the trust
   chain. If you need to add docs in another language, put them in a
   separate file and exclude it from the pin set.
-- The pin manifest at `lib/lead-extension.sha256` covers nine files
+- The pin manifest at `lib/lead-extension.sha256` covers eleven files
   (allowlist.json, path-guard.json, mcp-allow.json, notify-sh.sha256,
   canonicalize-path.py, allowlist_parser.py, lead-pretool-hook.py,
-  sanitize-jsonl.py, launch.ps1) plus a self-hash. If you fork and
-  change any of these, run `install.ps1` to re-pin.
+  sanitize-jsonl.py, launch.ps1, secret-scan.ps1, jsonl-watcher.ps1,
+  runner.ps1) plus a self-hash. v1.1.0 added the last three after
+  W3-NEW2 flagged them as live runtime files that v1.0 left
+  unsanctioned. If you fork and change any of these, run `install.ps1`
+  to re-pin.
 - The published `_ANCHOR_SHA` constant in `lib/lead-pretool-hook.py`
   reflects the author's install. `install.ps1` overwrites it with YOUR
   `install-hook.ps1` SHA on first run. Do not commit your local anchor
@@ -418,7 +444,7 @@ within 5 business days.
 | `install.ps1` | Bootstrap installer. Stamps anchor and runs install-hook. |
 | `launch.ps1` | Entrypoint: lockfile, preflight, manifest, WT spawn. |
 | `launch.cmd` | Standalone double-click wrapper. Forwards to launch.ps1. |
-| `runner.ps1` | Runs INSIDE the WT tab. Env scrub and claude exec. |
+| `runner.ps1` | Runs INSIDE the WT tab. Env scrub and claude exec. v1.1.0 adds 3-layer lock release (try/finally + Register-EngineEvent + SetConsoleCtrlHandler) per F-02. |
 | `system-prompt.md` | Role plus DENY hints. ASCII-only. |
 | `lib/install-hook.ps1` | Atomic chained-hook installer. Idempotent. |
 | `lib/lead-pretool-hook.py` | The runtime gate. |
@@ -429,10 +455,10 @@ within 5 business days.
 | `lib/path-guard.json` | Single source of truth for write-deny globs. |
 | `lib/mcp-allow.json` | Positive MCP allowlist. |
 | `lib/notify-sh.sha256` | Pinned hash of `~/.claude/tools/notify.sh`. |
-| `lib/lead-extension.sha256` | 9-file pin manifest plus self-hash. |
-| `lib/secret-scan.ps1` | BUILDER pre-push secret scanner. STUB until v1.1. |
-| `lib/jsonl-watcher.ps1` | OVERWATCH transcript tailer. STUB until v1.1. |
-| `lib/path-guard.ps1` | Standalone path-guard CLI. STUB until v1.1. |
+| `lib/lead-extension.sha256` | 11-file pin manifest plus self-hash. |
+| `lib/secret-scan.ps1` | BUILDER pre-push secret scanner. PRODUCTION-GRADE LIBRARY in v1.1.0; BUILDER pre-push hook wiring lands in v1.1.1. |
+| `lib/jsonl-watcher.ps1` | OVERWATCH transcript tailer. PRODUCTION-GRADE LIBRARY in v1.1.0; OVERWATCH ingest loop wiring lands in v1.1.1. |
+| `lib/path-guard.ps1` | Standalone path-guard CLI. STUB. The path-guard logic itself runs inside the hook and is unaffected. |
 
 ---
 
