@@ -110,6 +110,13 @@ from fail-closed stubs to production-grade implementations. The 4-mode
 matrix is now: ADVISOR + TOOLSMITH READY, BUILDER + OVERWATCH library-ready
 with runtime wiring deferred to v1.1.1.
 
+> **Note (added at v1.1.1 tag):** the wiring promised here was re-deferred
+> to **v1.2** when v1.1.1 became a distribution-first patch (host-hook
+> bootstrap gap + 2 latent runtime fixes). See the v1.1.1 entry's
+> "Known limitations carried forward" section. The library code shipped
+> in v1.1.0 is unchanged; only the consumer-side hook + ingest-loop wiring
+> moved to v1.2.
+
 Driven by codex Wave 3b adversarial re-review (3 BLOCKERs + 4 MAJORs +
 1 MINOR), then closed by codex Wave 3c convergence pass which independently
 flagged a 4th BLOCKER (runner.ps1 was promised in walkback CHANGELOG/README
