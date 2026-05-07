@@ -1,0 +1,13 @@
+# lib/requirements.txt (v0.9-final placeholder)
+# DESIGN.md s12.3 _se_n3_note: wcmatch pinned >=10.0,<11 because 10.x is the
+# first major to ship GLOBSTAR + BRACE constants in the public API. Major
+# range tracks one major to avoid a future 11.x semver-breaking flag rename
+# slipping in via `pip install -U`.
+#
+# v1.x install-hook.ps1 invokes:
+#   python -m pip install -r lib/requirements.txt --require-hashes
+# against lib/requirements.txt.hashes. The hook verifies wcmatch importability
+# AND that wcmatch.glob.GLOBSTAR + wcmatch.glob.BRACE constants exist at
+# startup; failure DENIES ALL with 'denied: integrity check failed'.
+
+wcmatch>=10.0,<11

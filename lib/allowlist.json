@@ -1,0 +1,258 @@
+{
+  "schemaVersion": 2,
+  "rules": [
+    {
+      "id": "git-push-feature",
+      "tool": "Bash",
+      "argvShape": [
+        {"literal": "git"},
+        {"literal": "push"},
+        {"literal": "-u"},
+        {"literal": "origin"},
+        {"capture": "branch", "regex": "^lead/[a-z0-9][a-z0-9-]{1,50}$"}
+      ],
+      "argvLengthExact": 5,
+      "preCheck": [
+        "scan-pass-manifest:staged-diff-sha256",
+        "scan-pass-manifest:branch-matches-head",
+        "scan-pass-manifest:worktree-path-matches-cwd",
+        "scan-pass-manifest:upstream-rev-matches-origin",
+        "wc-c-halt-if-diff-over-10mb",
+        "manifest-mtime-inode-stable"
+      ],
+      "comment": "B1 v0.4 push gated by staged-diff-sha256 scan-pass marker. v0.7 multi-lieutenant TOCTOU triple-check. v0.8 wc -c HALT-before-hash. v0.9 BLOCKER fix: closing-brace JSON-validity (V8-1) + 6th preCheck manifest-mtime-inode-stable (V8-8). Six preChecks evaluated in order; first failure denies with generic 'denied: not in allowlist'."
+    },
+    {
+      "id": "gh-pr-create-draft",
+      "tool": "Bash",
+      "argvShape": [
+        {"literal": "gh"},
+        {"literal": "pr"},
+        {"literal": "create"},
+        {"literal": "--draft"},
+        {"literal": "--title"},
+        {"capture": "title", "maxLen": 200},
+        {"literal": "--body"},
+        {"capture": "body", "maxLen": 8000}
+      ],
+      "argvLengthExact": 8,
+      "postCheck": ["scan-secrets-in:title", "scan-secrets-in:body"]
+    },
+    {
+      "id": "notify-sh",
+      "tool": "Bash",
+      "argvShape": [
+        {"literalAbsPath": "${LEAD_TOOLS_DIR}/notify.sh"},
+        {"capture": "msg", "maxLen": 1000}
+      ],
+      "argvLengthExact": 2,
+      "preCheck": ["sha256-verify:LEAD_NOTIFY_SHA256:notify.sh"],
+      "postCheck": ["scan-secrets-in:msg"],
+      "comment": "Parametrized 2026-05-06 to remove hardcoded user path. LEAD_TOOLS_DIR is set by runner.ps1 to ${USERPROFILE}/.claude/tools. allowlist_parser._expand_env handles the substitution; canonicalize() normalizes the slash style."
+    },
+    {
+      "id": "git-status",
+      "tool": "Bash",
+      "argvShape": [
+        {"literal": "git"},
+        {"literal": "status"},
+        {"oneOf": [{"literal": "-s"}, {"literal": "--short"}, {"literal": "--porcelain"}]}
+      ],
+      "argvLengthMax": 3
+    },
+    {
+      "id": "git-status-bare",
+      "tool": "Bash",
+      "argvShape": [{"literal": "git"}, {"literal": "status"}],
+      "argvLengthExact": 2
+    },
+    {
+      "id": "git-log",
+      "tool": "Bash",
+      "argvShape": [
+        {"literal": "git"},
+        {"literal": "log"},
+        {"capture": "args", "argvShapeMax": 4, "allowedFlags": ["--oneline", "-n", "-10", "-20", "--stat", "HEAD"]}
+      ],
+      "argvLengthMax": 6
+    },
+    {
+      "id": "git-diff",
+      "tool": "Bash",
+      "argvShape": [
+        {"literal": "git"},
+        {"literal": "diff"},
+        {"capture": "args", "argvShapeMax": 3, "allowedFlags": ["--stat", "--staged", "--cached", "HEAD", "--name-only"]}
+      ],
+      "argvLengthMax": 5
+    },
+    {
+      "id": "git-fetch",
+      "tool": "Bash",
+      "argvShape": [
+        {"literal": "git"},
+        {"literal": "fetch"},
+        {"oneOf": [{"literal": "origin"}, {"literal": "--all"}]}
+      ],
+      "argvLengthExact": 3
+    },
+    {
+      "id": "git-branch-list",
+      "tool": "Bash",
+      "argvShape": [
+        {"literal": "git"},
+        {"literal": "branch"},
+        {"oneOf": [{"literal": "-a"}, {"literal": "--list"}, {"literal": "-r"}, {"literal": "--show-current"}]}
+      ],
+      "argvLengthMax": 3
+    },
+    {
+      "id": "git-worktree-add",
+      "tool": "Bash",
+      "argvShape": [
+        {"literal": "git"},
+        {"literal": "worktree"},
+        {"literal": "add"},
+        {"capture": "path", "constraint": "under:LEAD_WORKTREE_PARENT"},
+        {"literal": "-b"},
+        {"capture": "branch", "regex": "^lead/[a-z0-9][a-z0-9-]{1,50}$"}
+      ],
+      "argvLengthExact": 6
+    },
+    {
+      "id": "secret-scan-ps1",
+      "tool": "Bash",
+      "argvShape": [
+        {"literal": "pwsh.exe"},
+        {"literal": "-File"},
+        {"literalAbsPath": "${LEAD_ALLOWLIST}/../secret-scan.ps1"}
+      ],
+      "argvLengthExact": 3,
+      "comment": "B1 v0.5 BUILDER invokes secret-scan with no extra args"
+    },
+    {
+      "id": "path-guard-ps1",
+      "tool": "Bash",
+      "argvShape": [
+        {"literal": "pwsh.exe"},
+        {"literal": "-File"},
+        {"literalAbsPath": "${LEAD_ALLOWLIST}/../path-guard.ps1"},
+        {"capture": "targetPath", "argvShapeMax": 1}
+      ],
+      "argvLengthExact": 4,
+      "comment": "B1 v0.5 BUILDER invokes path-guard with exactly one positional path arg"
+    },
+    {
+      "id": "git-add-explicit",
+      "tool": "Bash",
+      "argvShape": [
+        {"literal": "git"},
+        {"literal": "add"},
+        {
+          "capture": "paths",
+          "argvShapeMin": 1,
+          "argvShapeMax": 50,
+          "constraint": "under:LEAD_WORKTREE_PARENT",
+          "denyGlobsRef": "lib/path-guard.json:writeDenyGlobs"
+        }
+      ],
+      "argvLengthMin": 3,
+      "comment": "V8-6 v0.9 denyGlobsRef points to single source of truth. Hook loads path-guard.json once at startup; both this rule and the on-Edit/Write path-guard pass consume the same in-memory array. git add -p is explicitly absent (B1 v0.6)."
+    },
+    {
+      "id": "git-commit",
+      "tool": "Bash",
+      "argvShape": [
+        {"literal": "git"},
+        {"literal": "commit"},
+        {"literal": "-m"},
+        {"capture": "msg", "maxLen": 2000}
+      ],
+      "argvLengthExact": 4,
+      "postCheck": ["scan-secrets-in:msg"]
+    },
+    {
+      "id": "pnpm-test-ignore-scripts",
+      "tool": "Bash",
+      "argvShape": [
+        {"literal": "pnpm"},
+        {"oneOf": [{"literal": "test"}, {"literal": "run"}]},
+        {"literal": "--ignore-scripts"},
+        {"capture": "rest", "argvShapeMax": 5}
+      ],
+      "argvLengthMin": 3,
+      "argvLengthMax": 8
+    },
+    {
+      "id": "yarn-test-ignore-scripts",
+      "tool": "Bash",
+      "argvShape": [
+        {"literal": "yarn"},
+        {"oneOf": [{"literal": "test"}, {"literal": "run"}]},
+        {"literal": "--ignore-scripts"},
+        {"capture": "rest", "argvShapeMax": 5}
+      ],
+      "argvLengthMin": 3,
+      "argvLengthMax": 8
+    },
+    {
+      "id": "npm-test-ignore-scripts",
+      "tool": "Bash",
+      "argvShape": [
+        {"literal": "npm"},
+        {"literal": "test"},
+        {"literal": "--ignore-scripts"},
+        {"capture": "rest", "argvShapeMax": 5}
+      ],
+      "argvLengthMin": 3,
+      "argvLengthMax": 8
+    },
+    {
+      "id": "cargo-test",
+      "tool": "Bash",
+      "argvShape": [
+        {"literal": "cargo"},
+        {"literal": "test"},
+        {"capture": "rest", "argvShapeMax": 6, "allowedFlags": ["--all", "--lib", "--bin", "--no-fail-fast", "--release", "--", "--nocapture"]}
+      ],
+      "argvLengthMin": 2,
+      "argvLengthMax": 8
+    },
+    {
+      "id": "pytest-no-conftest",
+      "tool": "Bash",
+      "argvShape": [
+        {"literal": "pytest"},
+        {"oneOf": [{"literal": "--no-conftest"}, {"literal": "--noconftest"}]},
+        {"capture": "rest", "argvShapeMax": 10, "allowedFlags": ["-v", "-q", "-x", "-k", "--tb=short", "--tb=long"]}
+      ],
+      "argvLengthMin": 2,
+      "argvLengthMax": 12,
+      "comment": "SE-E5 v0.4 --no-conftest required when conftest.py present (preCheck verifies)",
+      "preCheck": ["pytest-conftest-check"]
+    },
+    {
+      "id": "pytest-no-conftest-present",
+      "tool": "Bash",
+      "argvShape": [
+        {"literal": "pytest"},
+        {"capture": "rest", "argvShapeMax": 10}
+      ],
+      "argvLengthMin": 1,
+      "argvLengthMax": 11,
+      "preCheck": ["assert-no-conftest-py-in-cwd"],
+      "comment": "SE-E5 v0.4 bare pytest only allowed if no conftest.py in cwd"
+    },
+    {
+      "id": "go-test",
+      "tool": "Bash",
+      "argvShape": [
+        {"literal": "go"},
+        {"literal": "test"},
+        {"capture": "rest", "argvShapeMax": 6, "allowedFlags": ["-v", "-race", "./...", "-run", "-count=1", "-cover"]}
+      ],
+      "argvLengthMin": 2,
+      "argvLengthMax": 8
+    }
+  ]
+}
