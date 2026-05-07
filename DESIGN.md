@@ -72,7 +72,7 @@ The skill adds the following on top of `claude`:
 11. `lib/path-guard.json` - allowed write-path globs (worktree-only); deny globs (env files, keys, .husky, .githooks, .github/workflows, build.rs, conftest.py, package.json scripts, setup.py, Gemfile postinstall, composer scripts) covering polyglot lateral-movement vectors. (SE-S4 v0.4, SE-E5 v0.4)
 12. `lib/mcp-allow.json` - POSITIVE ALLOW-LIST of MCP tool names the lead may call. Any tool not on the list is DENIED by default. This replaces the previous denylist (mcp-deny.json) so that new write tools added by plugin updates cannot slip through. Read-only and discovery-class tools enumerated. (B6 v0.4, C8, CM3 v0.5)
 13. `lib/notify-sh.sha256` - pinned SHA256 of the trusted `~/.claude/tools/notify.sh`. Hook verifies before exec. (C6)
-14. `lib/lead-extension.sha256` - pinned SHA256 of all 4 hook config JSONs (allowlist.json, path-guard.json, mcp-allow.json, notify-sh.sha256). The hook re-verifies against this manifest on EVERY PreToolUse fire, not just at launch. (B5 v0.4, SE-S2 v0.4)
+14. `lib/lead-extension.sha256` - pinned SHA256 manifest covering all 12 runtime-gate components: 3 JSON configs (allowlist.json, path-guard.json, mcp-allow.json), 1 nested SHA file (notify-sh.sha256), 4 Python modules (canonicalize-path.py, allowlist_parser.py, lead-pretool-hook.py, sanitize-jsonl.py), and 4 PowerShell scripts (secret-scan.ps1, jsonl-watcher.ps1, launch.ps1, runner.ps1). Self-hash terminator (line 16) chains over the 12 pin rows. The hook re-verifies against this manifest on EVERY PreToolUse fire, not just at launch. (B5 v0.4 origin scope; expanded in v1.1.0 walkback Wave 3b commit 1 + Wave 3c commit 10. SE-S2 v0.4)
 15. `lib/install-hook.ps1` - idempotent installer with `-Marker`/`-Version`/`-Repair`/`-RepinNotify`/`-Uninstall` flags. Detects existing extension and no-ops or upgrades; never blindly appends. (B7 v0.4, SE-R3 v0.4, SE-R5 v0.4)
 16. `tests/test-brakes.ps1` + `fixtures/*.txt` - deterministic fixture-based brake tests. No live forbidden-action attempts.
 17. `tests/test-hook.ps1` + `tests/fixtures/hook/*.json` - hook-level deny/allow unit tests with frozen UTC + seeded mocks. Includes Task/Agent dispatch fixtures (SE-S1) and worktree-CI-hook fixtures (SE-S4). (NB-06, C10, SE-S1 v0.4, SE-S4 v0.4)
@@ -105,7 +105,7 @@ The slash command runs IN main CC, so it already knows the caller's cwd and sess
    - Resolve absolute paths to required binaries via `Get-Command -CommandType Application` (NOT bare `Get-Command` which can match functions/aliases) and verify the resolved path starts with one of these four trust-root prefixes: `$env:SYSTEMROOT`, `$env:PROGRAMFILES`, `$env:LOCALAPPDATA\Programs`, `$env:LOCALAPPDATA\Microsoft\WindowsApps`. This extends the v0.5 trust root which only covered SYSTEMROOT/PROGRAMFILES and would incorrectly reject user-installed wt.exe/claude.exe/python.exe which commonly live in LocalAppData\Programs on Windows 11. (SE-E2/CM4 v0.6) Reject any binary not under one of these four prefixes. Persist to manifest: `wt.exe`, `claude.exe`, EITHER `pwsh.exe` OR `powershell.exe` (whichever is present; pure PS5.1 boxes are supported), `git.exe`, `gh.exe`, `python.exe` (for the hook). The runner uses these absolute paths; PATH-based resolution is NOT trusted at runner-time because env-scrub strips the lead's PATH to a minimum. (B10 v0.4)
    - `wt --version` must report `>= 1.18`. Parse via regex on stdout. (C1)
    - If BUILDER mode is reachable: three-step check: `gh auth status` exit 0 AND `gh auth status -t` shows `repo` scope AND `gh repo view` succeeds. Else emit `gh auth login` instructions. (C5 v0.5)
-   - Verify `~/.claude/hooks/lead-pretool-hook.py` exists, `~/.claude/hooks/windows-shell-safety` is wired with the lead extension, and `~/.claude/hooks/lead-extension.sha256` matches the freshly-computed hash of all 4 config JSONs. If any check fails: refuse with "install or repair the hook first" message. The hook is the runtime gate; running the lead without it is an explicit security regression. (S-01, C7, B5 v0.4)
+   - Verify `~/.claude/hooks/lead-pretool-hook.py` exists, `~/.claude/hooks/windows-shell-safety` is wired with the lead extension, and `~/.claude/hooks/lead-extension.sha256` matches the freshly-computed hashes of all 12 pinned components in the manifest (B5 v0.4 origin: 4 JSON-only; expanded v1.1.0 to 12-row coverage). If any check fails: refuse with "install or repair the hook first" message. The hook is the runtime gate; running the lead without it is an explicit security regression. (S-01, C7, B5 v0.4)
 
    3.3 **cwd validation (W-08):** `Test-Path -LiteralPath $CallerCwd -PathType Container`. Reject:
    - UNC roots starting `\\?\` or `\\.\` OR standard UNC paths `\\server\share` (any two-backslash prefix)
@@ -501,7 +501,7 @@ Standalone uses the same two-stage manifest spawn path as 4.1.
 - **Lead invoked when lead is already running** - lockfile check refuses unless `-Force`. (C4)
 - **`gh` not authenticated for BUILDER** - preflight error with `gh auth login` instructions. (C5)
 - **Hook missing or stale schema** - launcher refuses with link to install instructions. (S-01, C7)
-- **Hook config tampering between launches** - launcher computes SHA256 of all 4 config JSONs and compares against `lead-extension.sha256`. Mismatch refuses. (B5 v0.4)
+- **Hook config tampering between launches** - launcher computes SHA256 of all 12 pinned manifest components (3 JSON + 1 nested SHA + 4 Python + 4 PowerShell, see s7 row 14) and compares against `lead-extension.sha256`. Mismatch refuses. (B5 v0.4 origin scope; expanded v1.1.0)
 - **Crash recovery from partial launch** - stale manifest cleanup pass (4.1.7). Stale locks cleared silently. ACK markers checked on each launch (4.1.4.6).
 - **Roaming/network profile** - manifest+lock use `$env:LOCALAPPDATA\Temp` (always local) instead of `$env:TEMP` (which can resolve to a roaming share). (SE-E1 v0.4)
 - **Pure PS5.1 box (no pwsh)** - launcher uses whichever of pwsh/powershell is present; absPaths.ps captures the chosen one. (B10 v0.4)
@@ -1145,7 +1145,7 @@ When asked to mint a skill:
 |   +-- path-guard.json       # write-allow worktree; write-deny CI hooks + lifecycle scripts (SE-S4 v0.4, SE-E5 v0.4)
 |   +-- mcp-allow.json         # MCP positive allow-list; deny-by-default for all other tools (B6 v0.4, CM3 v0.5)
 |   +-- notify-sh.sha256      # pinned SHA256 of trusted notify.sh
-|   +-- lead-extension.sha256 # pinned SHA256 of all 4 hook config JSONs (B5 v0.4)
+|   +-- lead-extension.sha256 # 12-pin manifest: 3 JSON + 1 nested SHA + 4 .py + 4 .ps1 (B5 v0.4 -> v1.1.0)
 |   +-- install-hook.ps1      # idempotent installer with -Marker / -RepinNotify / -Repair / -Uninstall (B7 v0.4)
 +-- fixtures/
 |   +-- refuse-publish.txt
@@ -1313,7 +1313,7 @@ The lead-mode contract requires these env vars to all be set with valid paths:
 
 If any are missing or invalid, the hook **denies all tool calls** with `lead-agent hook config invalid; refuse all`. Fail-closed.
 
-**Per-fire SHA verification (B5 v0.4, SE-S2 v0.4):** on every PreToolUse fire, the hook re-computes SHA256 of allowlist.json, path-guard.json, mcp-allow.json, notify-sh.sha256 and compares against the manifest in `lead-extension.sha256`. Any mismatch denies the tool call with the generic message `denied: integrity check failed` (detailed mismatch info logged to disk only per SE-S5 v0.4). This catches the TOCTOU window where an attacker modifies a config between launches.
+**Per-fire SHA verification (B5 v0.4, SE-S2 v0.4; pin set expanded v1.1.0):** on every PreToolUse fire, the hook re-computes SHA256 of all 12 pinned components -- 3 JSON configs (allowlist.json, path-guard.json, mcp-allow.json), 1 nested SHA file (notify-sh.sha256), 4 Python modules (canonicalize-path.py, allowlist_parser.py, lead-pretool-hook.py, sanitize-jsonl.py), and 4 PowerShell scripts (secret-scan.ps1, jsonl-watcher.ps1, launch.ps1, runner.ps1) -- and compares each against the manifest in `lead-extension.sha256`. Any mismatch denies the tool call with the generic message `denied: integrity check failed` (detailed mismatch info logged to disk only per SE-S5 v0.4). This catches the TOCTOU window where an attacker modifies a config between launches and the v1.1.0 expansion closes the W3-NEW2 / Wave 3c gap where live runtime files (secret-scan, jsonl-watcher, runner) were unsanctioned.
 
 ### 12.2 ALLOW: argv-shape parsers (NB-07, B1 v0.4, SE-R1 v0.4)
 
@@ -1975,7 +1975,7 @@ The hook on every fire (NOT just at launch):
 
 1. Read install-hook.ps1 bytes via atomic read-once; re-hash; compare to $ANCHOR_SHA constant hardcoded in hook source. If mismatch: DENY ALL with "denied: integrity check failed" (C7 v0.6, SE-N6 v0.6, SE-N16 v0.6). This terminates the trust chain at the hardcoded constant rather than a mutable file.
 2. Reads `lead-extension.sha256` bytes-once; verifies self-hash (last line). On self-hash failure: DENY.
-3. For each entry (lines 1-9, including launch.ps1): applies the atomic read-once-hash-parse contract above (SE-N8 v0.6: launch.ps1 now in pin set). Also verifies launch.ps1 hash matches manifest's `createdByImageSha256`.
+3. For each entry (lines 1-12, the v1.1.0 12-row pin set: 3 JSON + 1 nested SHA + 4 Python + 4 PowerShell — see s7 row 14 for the full enumeration): applies the atomic read-once-hash-parse contract above (SE-N8 v0.6: launch.ps1 now in pin set; W3-NEW2/Wave 3c expanded set adds secret-scan.ps1 + jsonl-watcher.ps1 + runner.ps1). Also verifies launch.ps1 hash matches manifest's `createdByImageSha256`.
 4. Any mismatch -> DENY with generic `denied: integrity check failed`. Detailed mismatch info logged to `~/.claude/hooks/lead-pretool-hook.log` only (SE-S5 v0.4).
 5. The pinned hashes file is owned by the current user, no group/other write. `Set-Acl` enforced by `install-hook.ps1`.
 
