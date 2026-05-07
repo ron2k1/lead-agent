@@ -23,8 +23,11 @@ control to `launch.ps1`; do not attempt to do its work in-line.
   different launcher (W-03).
 - A prior lieutenant is still running and the lockfile at
   `%LOCALAPPDATA%\Temp\lead-agent.lock` is held by a live process tree. Refuse
-  with the lockfile's PID; suggest closing the prior tab. `-Force` is opt-in
-  per DESIGN.md section 4.1.3.1.
+  with the lockfile's PID and suggest closing the prior tab. If the lockfile
+  is orphaned (lieutenant tab closed without runner cleanup, parent process
+  killed, mid-session reboot), point the user at README.md `## Recovery` for
+  the manual cleanup one-liner. `-Force` is a documented v1.x stub
+  (`launch.ps1:46-52`); do NOT offer it as a workaround.
 
 ## How to invoke
 
@@ -42,6 +45,29 @@ directly; do NOT use the latest-modified-JSONL heuristic to discover them
 Standalone double-click path: `launch.cmd` does the same with no
 `-CallerSessionId` (runner derives it from the lead's own JSONL on first
 write).
+
+### Contract
+
+When the user types `/lead-agent` with no arguments:
+
+- Pass `-CallerCwd $PWD` to `launch.ps1`.
+- Default to ADVISOR mode (the documented `-Mode` default in `launch.ps1`).
+- Do NOT prompt the user for mode, cwd, or subdir.
+- Do NOT inline-replicate `launch.ps1`'s lockfile, preflight, or
+  PID-correlation logic. Hand control over and let `launch.ps1` own those
+  checks. The skill is intentionally a thin shell.
+
+When `launch.ps1` refuses:
+
+- Surface its `lead-agent refuses: <reason>` message verbatim, including
+  the `hint:` line.
+- Do NOT offer to bypass via `-Force` -- that flag is a documented v1.x
+  stub (`launch.ps1:46-52` still refuses with
+  `-Force not yet implemented`).
+- For the stale-lockfile case specifically, point the user at README.md
+  `## Recovery` for the manual cleanup one-liner.
+
+Closes F-03 + F-04; see DESIGN.md section 15.10.
 
 ## Files
 
