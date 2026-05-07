@@ -88,7 +88,10 @@ The following are OUT of scope:
   paths: (a) your own custom PreToolUse hook, (b) the bundled no-op
   stub at `lib/windows_shell_safety_stub.py` dropped via
   `install.ps1 -Bootstrap`, or (c) any equivalent hook pointed at via
-  `-HookFileOverride`. lead-agent is an *extension* of whichever file
+  `lib/install-hook.ps1 -HookFileOverride <path>` (note: invoke the
+  inner installer directly; top-level `install.ps1` does not forward
+  this flag in v1.1.1, end-to-end plumbing tracked for v1.2). lead-agent
+  is an *extension* of whichever file
   is present, not a replacement. Bugs in YOUR host hook are your
   problem; bugs in the bundled stub (which intentionally allow-alls)
   are out of scope unless they break the chain anchor and prevent

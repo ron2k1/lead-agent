@@ -102,8 +102,10 @@ Soft requirements (recommended):
        anchor only -- the stub is allow-all on its own; lead-agent's
        deny-by-default gate runs ON TOP of it when `LEAD_AGENT=1`. The
        stub never touches main CC's behavior.
-    3. You have a hook at a different path. Pass `-HookFileOverride
-       <path>` to point at it.
+    3. You have a hook at a different path. Invoke
+       `lib/install-hook.ps1 -HookFileOverride <path>` directly (the
+       top-level `install.ps1` does not forward this flag in v1.1.1
+       -- end-to-end plumbing tracked for v1.2).
   Without one of the above, `install.ps1` refuses. The stub is NOT
   pinned in `lib/lead-extension.sha256` by design -- you are expected
   to replace or harden it yourself.
