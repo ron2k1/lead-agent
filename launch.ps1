@@ -43,14 +43,59 @@ if ($env:LEAD_AGENT_MODE) {
 try {
     $lockStream = [System.IO.File]::Open($LockPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
 } catch [System.IO.IOException] {
-    if ($Force) {
-        # TODO DESIGN.md s4.1.3.1 v1.x: stale-detection should compare
-        # BOTH pid AND startTime (Win32_Process.CreationDate) to guard
-        # against PID reuse. Then kill the prior PID with explicit confirm.
-        # v0.9-final ships fail-closed: -Force currently still refuses.
-        Write-Refusal "stale lockfile detected; -Force not yet implemented" "delete $LockPath manually after confirming no lead-agent is running."
+    # F-01 (DESIGN.md s4.1.3.1 v1.1): orphan-lock stale detection. A live PID
+    # whose Win32_Process.CreationDate matches the lock's startTime (within 2s
+    # of WMI clock skew) proves the lock is owned. PID dead OR CreationDate
+    # mismatch proves stale -- reclaim under -Force only. Stale reclaims log
+    # to logs/lock-recovery.log for forensics.
+    if (-not $Force) {
+        Write-Refusal "lead-agent already running" "close the prior tab; lockfile at $LockPath. Retry with -Force only after confirming no lead-agent process is running."
     }
-    Write-Refusal "lead-agent already running" "close the prior tab; lockfile at $LockPath."
+    $stale       = $false
+    $reason      = ''
+    $rawLock     = ''
+    $lockedPid   = 0
+    $lockedStart = [datetime]::MinValue
+    try {
+        $rawLock     = Get-Content -LiteralPath $LockPath -Raw -ErrorAction Stop
+        $lockJson    = $rawLock | ConvertFrom-Json -ErrorAction Stop
+        $lockedPid   = [int]$lockJson.pid
+        $lockedStart = [datetime]::Parse($lockJson.startTime).ToUniversalTime()
+    } catch {
+        $stale  = $true
+        $reason = "corrupt or unparsable lockfile: $($_.Exception.Message)"
+    }
+    if (-not $stale) {
+        $proc = Get-CimInstance Win32_Process -Filter "ProcessId=$lockedPid" -ErrorAction SilentlyContinue
+        if (-not $proc) {
+            $stale  = $true
+            $reason = "PID $lockedPid is dead"
+        } else {
+            $procStart = ([datetime]$proc.CreationDate).ToUniversalTime()
+            $skew      = [Math]::Abs(($procStart - $lockedStart).TotalSeconds)
+            if ($skew -gt 2) {
+                $stale  = $true
+                $reason = "PID $lockedPid reused (CreationDate skew $([int]$skew)s > 2s slack)"
+            }
+        }
+    }
+    if (-not $stale) {
+        Write-Refusal "lead-agent is genuinely running (PID $lockedPid, started $($lockedStart.ToString('o')))" "close the prior tab; -Force will not override a live lock."
+    }
+    $logDir = Join-Path $ScriptRoot 'logs'
+    if (-not (Test-Path -LiteralPath $logDir -PathType Container)) {
+        New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+    }
+    $rawForLog = ($rawLock -replace '[\r\n]+', ' ')
+    $logLine   = "{0}  RECLAIM  {1}  raw={2}" -f (Get-Date).ToUniversalTime().ToString('o'), $reason, $rawForLog
+    Add-Content -LiteralPath (Join-Path $logDir 'lock-recovery.log') -Value $logLine -Encoding UTF8
+    try {
+        Remove-Item -LiteralPath $LockPath -Force -ErrorAction Stop
+        $lockStream = [System.IO.File]::Open($LockPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+    } catch {
+        Write-Refusal "stale lockfile reclaim failed: $($_.Exception.Message)" "another launcher may have raced; retry once."
+    }
+    Write-Host "lead-agent reclaimed stale lockfile ($reason)" -ForegroundColor Yellow
 }
 $lockContent = @{ pid = $PID; startTime = (Get-Date).ToString('o'); ppid = (Get-CimInstance Win32_Process -Filter "ProcessId=$PID").ParentProcessId } | ConvertTo-Json -Compress
 $lockBytes   = [System.Text.Encoding]::UTF8.GetBytes($lockContent)
