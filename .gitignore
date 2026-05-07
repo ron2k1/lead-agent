@@ -1,0 +1,29 @@
+# Codex review artifacts contain captured commands with absolute user paths.
+# The cycles produced this design (DESIGN.md section 15 has the changelog),
+# but the raw transcripts leak local filesystem details. Keep them out.
+codex-reviews/
+.codex-review-prompt.txt
+
+# The notify.sh hash is a per-user pin computed by install.ps1 -RepinNotify
+# from each cloner's local ~/.claude/tools/notify.sh. Shipping the author's
+# hash would silently fail-closed every cloner's hook.
+lib/notify-sh.sha256
+
+# Author's working docs that are not part of the public deliverable.
+docs/readme-review.md
+docs/security-audit.md
+docs/launch-posts.md
+
+# Build / runtime / OS / editor cruft.
+*.log
+*.bak
+*.tmp
+*.swp
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
